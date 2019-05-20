@@ -10,3 +10,5 @@ An FTP module developed using RFC959 can be used by other software.
 ##Time-Table
 ###2019-5-19
 ==> Make a development request and create this project.
+###2019-5-20
+==> Install asio and make some test in Ubuntu.
