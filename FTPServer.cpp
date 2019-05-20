@@ -6,7 +6,6 @@
  ************************************************************************/
 #include<iostream>
 #include <boost/asio.hpp>
-using namespace boost::asio;
 char buff[512];
 int offset = 0;
 size_t up_to_enter(const boost::system::error_code &, size_t bytes){
@@ -20,6 +19,7 @@ void on_read(const boost::system::error_code&, size_t){
 	std::cout<<"Buff:"<<std::endl<<buff<<std::endl;
 }
 int main(){
+	using namespace boost::asio;
 	io_service service;
 	ip::tcp::socket sock(service);
 	ip::tcp::endpoint ep(ip::address::from_string("127.0.0.1"),80);
