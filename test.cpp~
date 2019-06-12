@@ -1,0 +1,24 @@
+/*************************************************************************
+    > File Name: test.cpp
+    > Author: MidCHeck
+    > Mail: midcheck@foxmail.com 
+    > Created Time: 2019年06月11日 星期二 14时43分15秒
+ ************************************************************************/
+
+#include<iostream>
+using namespace std;
+
+int main(){
+	const char* str = "Helo";
+	switch(str){
+		case "Helo":
+			cout << "str" <<endl;
+			break;
+		case "Word":
+			cout << "world" <<endl;
+			break;
+		default:
+			cout << "default" <<endl;
+	}
+	return 0;
+}

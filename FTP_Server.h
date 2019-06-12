@@ -11,41 +11,9 @@
 #include<pthread.h>
 #define MAX_EVENT_NUMBER 1024
 #endif
+#include<mutex>
 
 namespace MidCHeck{
-/*访问控制命令*/
-#define _USER	"USER"
-#define _PASS	"PASS"
-#define _CWD	"CWD"
-#define _REIN	"REIN"
-#define _QUIT	"QUIT"
-/*传输参数命令*/
-#define _PORT	"PORT"
-#define _PASV	"PASV"
-#define _TYPE	"TYPE"
-#define _STRU	"STRU"
-#define _MODE	"MODE"
-/*FTP服务命令*/
-#define _SIZE	"SIZE"
-#define _RETR	"RETR"
-#define _STOR	"STOR"
-#define _ALLO	"ALLO"
-#define _REST	"REST"
-#define _RNFT	"RNFR"
-#define _RNTO	"RNTO"
-#define _ABOR	"ABOR"
-#define _DELE	"DELE"
-#define _RMD	"RMD"
-#define _MKD	"MKD"
-#define _PWD	"PWD"
-#define _LIST	"LIST"
-#define _NLST	"NLST"
-#define _SYST	"SYST"
-#define _HELP	"HELP"
-#define _NOOP	"NOOP"
-
-
-typedef enum { 
 struct Buffer{
 	std::vector<char> data;
 	int read;
@@ -58,14 +26,60 @@ struct Buffer{
 	}
 	
 };
-struct Worker{
+class SharedData{
+private:
+	std::unordered_map<const char*, COMMAND> cmd_map;
+	std::unordered_mpa<const char*, User> users;
+	std::string dir_root;
+	static std::mutex m;
+public:
+	ShareData(const string& home);
+	static SharedData* GetEntity();
+	bool AddUser(User &user);
+	bool IsLegalUser(const char* user_name){
+		return users.end() != users.find(user_name);
+	}
+	string GetPasswd(const char* user_name){
+		std::unordered_map<string, string>::const_iterator user = users.find(user_name);
+		return user != users.end() ? user->second : "";
+	}
+	COMMAND GetCmd(std::vector<char>& buf, int& cur){
+		char cmd[5] = {'\0'}, *ptr = strstr(&buf[1], ' ');
+		cur = ptr - &buf[0];
+		try{
+			memcpy(cmd, &buf[1], cur - 1);
+		}catch(...){
+			for(int i = 0; i < cur - 1; ++i)
+				cmd[i] = buf[1+i];
+		}
+		std::unordered_map<const char*, COMMAND>::const_iterator it 
+			= cmd_map.find(cmd);
+		return it != cmd_map.end() ? it->second : ERRCOMMAND;
+	}
+};
+std::mutex SharedData::m;
+SharedData* SharedData::GetEntity(){
+	m.lock();
+	static SharedData obj;
+	m.unlock();
+	return &obj;
+}
+class Worker{
+private:
 	int _epollfd;
 	int _sockfd;
-	vector<char> buf(128);
-	Worker(int efd, int sfd):_epollfd(efd), _sockfd(sfd){}
+	int _rw_cur;
+	std::vector<char> buf(128); // 每个线程都有缓冲区
+	COMMAND parse(std::vector<char> &, int&);
+public:
+	Worker(int efd, int sfd):_epollfd(efd), _sockfd(sfd), _rw_cur(0){}
 	void operator()(){
+		buf[0] = '\0';
+		// 如果命令后的参数太长，则可能出bug
 		while(1){
-			int ret = recv(_sockfd, &buf[0], buf.size(), 0);
+			// 非第一次接受数据
+			if(buf[0] != 0) buf.clear();
+			int ret = recv(_sockfd, &buf[1], buf.size() - 1, 0);
 			if(ret == 0){
 				close(sockfd);
 				break;
@@ -76,7 +90,10 @@ struct Worker{
 					break;
 				}
 			}else{
-				
+				buf[0]++;
+				// 解析命令
+				Command* cmd = CommandFactory(parse(buf, _rw_cur));
+				if(cmd.process(
 			}
 		}
 	}
