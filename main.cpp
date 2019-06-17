@@ -20,9 +20,9 @@ void query(const char* name, MidCHeck::Database* db){
 			<< "Home: " << res->home_path << std::endl
 			<< std::endl;
 }
-int main(){
+int main(int argc, char **argv){
 	MidCHeck::Database* db = new MidCHeck::Database;
-	db->add("wangsan", "123456");
+	db->add("wangsan", "123456", "/home/zero");
 	db->add("zhangsi", "1sda2");
 	db->add("lisi", "3dsda$");
 	db->add("huangs", "ed33");
@@ -33,13 +33,13 @@ int main(){
 	Shardata* sd = Shardata::GetEntity();
 	sd->db = db;
 
-	FTP_Server ftp("127.0.0.1", 8021);
+	FTP_Server ftp("0.0.0.0", 8021);
 	ftp.start();
 
 	delete db;
 	return 0;
 }
 } // end namespace MidCHeck
-int main(){
-	return DataTest::main();
+int main(int argc, char** argv){
+	return DataTest::main(argc, argv);
 }

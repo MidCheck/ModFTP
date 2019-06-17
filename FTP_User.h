@@ -6,10 +6,13 @@
  ************************************************************************/
 #include<string>
 #include<vector>
-
+#include<sys/socket.h>
+#include<condition_variable>
+#include<boost/filesystem.hpp>
+namespace fs = boost::filesystem;
 namespace MidCHeck{
-/*用户状态: 合法用户，非法用户，未登录，已登录，已退出*/
-typedef enum {ILLEGAL, LEGAL, NOTLOGGED, LOGGED, QUITED} Usrstat;
+/*语法错误, 合法用户，非法用户，未登录，已登录，已退出, 正在传输中*/
+typedef enum {SYNTAXERR, ILLEGAL, LEGAL, NOTLOGGED, LOGGED, QUITED, TRANSING} Usrstat;
 
 /*用户类，存放用户环境变量以及当前信息*/
 class User{
@@ -24,13 +27,12 @@ public:
 
 	char buffer[128];
 	int rw_cur;
+
+	std::mutex mut;
+	std::condition_variable wait_data; // 等待数据传输完成
 	User(): rw_cur(1){}
-	/*
-	User(const char* nam, const char* pass, Usrstat au, Usrstat sta, const char* home = nullptr):
-		name(nam), passwd(pass), auth(au), status(sta){
-		Shardata* sd = Shardata::GetEntity();
-		this->path = this->home = nullptr == home ? sd->GetRootPath() : home;
-	} = delete;
-	*/
+	void flush(){
+		send(sockfd, buffer, rw_cur, 0);
+	}
 };
 } // end namespace MidCHeck

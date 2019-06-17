@@ -8,20 +8,17 @@
 using namespace MidCHeck;
 
 COMMAND Worker::parse(char* buf, int& cur){
-	char* ptr = strstr(buf, " ");
-	std::cout << "  [w] recv:[" << buf << "]" << std::endl; 
-	if(ptr == nullptr) return ERRCOMMAND;
-	char *cmd = new char[ptr-buf];
-	memcpy(cmd, buf, ptr-buf);
-	//cmd[ptr-buf] = '\0';
-	cur = ptr-buf+2;
-	//std::cout << "  [w] cmd:[" << cmd << "]" << std::endl;
+	if(!replace(buf, " ")){ 
+		// 检查是否以'\n'结尾的合法命令
+		if(!replace(buf)) return ERRCOMMAND;
+	}
+	// 此处cur的定位只假设此buf的首地址开始计数,如果自定义格式应由外部保证cur
+	cur = strlen(buf) + 1;
+
 	Shardata* sd = Shardata::GetEntity();
 	std::unordered_map<std::string, COMMAND>::const_iterator it =
-		sd->cmd_map.find(cmd);
-	COMMAND ret = it != sd->cmd_map.end() ? it->second : ERRCOMMAND;
-	delete[] cmd;
-	return ret;
+		sd->cmd_map.find(buf);
+	return it != sd->cmd_map.end() ? it->second : ERRCOMMAND;
 }
 void FTP_Server::start(){
 	while(1){
@@ -31,18 +28,16 @@ void FTP_Server::start(){
 		for(int i = 0; i < ret; ++i){
 			int sockfd = events[i].data.fd;
 			if(sockfd == this->sock){
-				std::cout << "[s] sockfd" << std::endl;
-
 				struct sockaddr_in client_address;
 				socklen_t client_addrlength = sizeof(client_address);
 				int connfd = accept(this->sock, (struct sockaddr*)&client_address,
 						&client_addrlength);
+				const char *ftp_220 = "220 Welcome to my FTP site!\r\n";
+				send(connfd, ftp_220, strlen(ftp_220), 0);
 				/*对每个非监听文件描述符都注册EPOLLONESHOT事件*/
-				std::cout << "[s] sock connfd: " << connfd << std::endl;
 				addfd(epollfd, connfd, true);
 			}else if(events[i].events & EPOLLIN){
-				std::cout << "[s] epollin" << std::endl;
-				Worker work(epollfd, sockfd);
+				Worker work(epollfd, sockfd); // work析够一次
 				std::thread my_thread(work);
 				my_thread.detach();
 			}else {

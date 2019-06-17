@@ -66,12 +66,13 @@ public:
 	}
 	void operator()(){
 		char* buf = _user->buffer;
-		buf[0] = '\0';
+		bool flag = false;
 		// 如果命令后的参数太长，则可能出bug
 		while(1){
 			// 非第一次接受数据
-			if(buf[0] != 0) memset(buf, '\0', 128);
-			int ret = recv(_sockfd, &buf[1], 127, 0);
+			// 可能不需要清空内存，因为解析时以结束符为标志
+			if(flag) memset(buf, '\0', _user->rw_cur);
+			int ret = recv(_sockfd, buf, 128, 0);
 
 			if(ret == 0){
 				//delete _user;
@@ -85,9 +86,9 @@ public:
 					break;
 				}
 			}else{
-				buf[0]++;
+				flag = true;
 				// 解析命令
-				COMMAND recv_cmd = parse(&buf[1], _user->rw_cur);
+				COMMAND recv_cmd = parse(buf, _user->rw_cur);
 				
 				Command* cmd = CommandFactory(_user).CreateCmd(recv_cmd);
 				std::cout << "[+] succeed, do ->" << recv_cmd 
@@ -97,7 +98,6 @@ public:
 				std::cout << "[+] succeed, process" << std::endl;
 				//　阻塞与非阻塞可能有bug
 				send(_sockfd, buf, _user->rw_cur, 0);
-				
 			}
 		}
 	}

@@ -26,7 +26,6 @@ public:
 	const Tabusr* query(const char* name){
 		std::unordered_map<std::string, MidCHeck::Tabusr>::const_iterator it = 
 			users.find(name);
-		std::cout << " [d] query in" << std::endl;
 		return it != users.end() ? &it->second : nullptr;
 	}
 	void add(const char* nam, const char* pass, const char* home = "."){

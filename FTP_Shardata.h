@@ -54,7 +54,6 @@ typedef enum {
 class Shardata{
 public:
 	std::unordered_map<std::string, COMMAND> cmd_map;	
-//	std::unordered_map<const char*, User*> users;
 	std::unordered_map<int, User*> users;
 	std::string dir_root;
 	MidCHeck::Database* db;
@@ -69,41 +68,8 @@ public:
 		}
 		return false;
 	}
-	/*
-	bool IsLegalUser(const char* user_name){
-		return users.end() != users.find(user_name);
-	}
-	const std::string& GetPasswd(const char* user_name){
-		std::unordered_map<string, string>::const_iterator user = users.find(user_name);
-		return user != users.end() ? user->second->passwd : "";
-	}
-	*/
 	const std::string& GetRootPath(){ return dir_root; }
-	/*
-	COMMAND GetCmd(std::vector<char>& buf, int& cur){
-		char cmd[5] = {'\0'}, *ptr = strstr(&buf[1], ' ');
-		cur = ptr - &buf[0];
-		try{
-			memcpy(cmd, &buf[1], cur - 1);
-		}catch(...){
-			for(int i = 0; i < cur - 1; ++i)
-				cmd[i] = buf[1+i];
-		}
-		std::unordered_map<const char*, COMMAND>::const_iterator it 
-			= cmd_map.find(cmd);
-		return it != cmd_map.end() ? it->second : ERRCOMMAND;
-	}
-	*/
 };
-/*
-bool Shardata::AddUser(int fd, User *user){
-	if(users.find(fd) != users.end()){
-		users[fd] = user;
-		return true;
-	}
-	return false;
-}
-*/
 } // end namespace MidCHeck
 
 #endif
