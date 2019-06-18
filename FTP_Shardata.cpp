@@ -18,6 +18,7 @@ Shardata::Shardata(){
 	cmd_map["USER"] = USER;
 	cmd_map["PASS"] = PASS;
 	cmd_map["CWD"] = CWD;
+	cmd_map["CDUP"] = CDUP;
 	cmd_map["QUIT"] = QUIT;
 	cmd_map["REIN"] = REIN;
 	cmd_map["POST"] = POST;
