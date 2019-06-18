@@ -4,6 +4,7 @@
     > Mail: midcheck@foxmail.com 
     > Created Time: 2019年06月12日 星期三 17时11分11秒
  ************************************************************************/
+#include <regex>
 #include <cstring>
 #include "FTP_Shardata.h"
 
@@ -92,7 +93,9 @@ public:
 			if(this->user->passwd == buffer){
 				this->user->status = LOGGED;
 				reply("230 User logged in, proceed\r\n");
+				//std::cout << " [P] " << fs::current_path().c_str() << std::endl;
 				fs::current_path(fs::path(user->path));
+				//std::cout << " [P2]" << fs::current_path().c_str() << std::endl;
 				return;
 			}
 			reply("530 login failed,wrong passwd!\r\n");
@@ -140,14 +143,42 @@ public:
 };
 
 class CmdCWD: public Command{
+protected:
+	void parse(char* buf, std::vector<std::string>& list){
+		char *ptr = buf;
+		while(*ptr != '\0' && (ptr = strstr(buf, "/"))){
+			*ptr++ = '\0';
+			list.push_back(buf);
+			buf = ptr;
+		}
+		if(*buf != '\0')
+			list.push_back(buf);
+	}
 public:
 	CmdCWD(User* usr):Command(usr) {}
 	void process(){
 		char* buf = &user->buffer[user->rw_cur];
+		fs::path p(user->path);
+		if(buf[0] == '/') {
+			p = "/";
+			++buf;
+		}
 		check(buf);
-		fs::path p(buf);
+		std::vector<std::string> path_list;
+		parse(buf, path_list);
+
+		for(std::string& path : path_list){
+			if(path == ".."){
+				p = p.parent_path();
+			}else if(path == "."){
+				continue;
+			}else{
+				p /= path;
+			}
+		}
+
 		if(!fs::exists(p)){
-			reply("431 no such directory\r\n");
+			user->rw_cur = sprintf(user->buffer, "431 no such directory %s\r\n\0", p.c_str());
 			return;
 		}
 		if(!fs::is_directory(p)){
@@ -156,8 +187,7 @@ public:
 		}
 		//current_path(p);
 		user->path = p.string();
-		reply("200 working directory changed\r\n");
-		return;
+		user->rw_cur = sprintf(user->buffer, "200 working directory changed to %s\r\n\0", p.c_str());
 	}
 };
 
@@ -166,19 +196,75 @@ public:
 	CmdMKD(User* usr): Command(usr){}
 	void process(){
 		char* buf = &user->buffer[user->rw_cur];
+		fs::path p(user->path);
+		if(buf[0] == '/'){ 
+			p = "/";
+			++buf;
+		}
 		check(buf);
-		fs::path p(buf);
+		p /= buf;
+
 		if(fs::exists(p)){
 			user->rw_cur = sprintf(user->buffer, "%d-\"%s\" directory already exists;\n%d taking no action.\r\n\0", 521, p.c_str(), 521);
 			return;
 		}
-		if(fs::create_directory(p)){
-			user->rw_cur = sprintf(user->buffer, "%d %s directory created\r\n\0", 257, (user->path + p.string()).c_str());
+		try{
+			bool flag = strstr(buf, "/") == nullptr
+				?fs::create_directory(p)
+				:fs::create_directories(p);
+			if(flag){
+				user->rw_cur = sprintf(user->buffer, "%d %s directory created\r\n\0", 257, p.c_str());	
+				return;
+			}
+		}catch(...){
+			reply("553 filenames are not allowed\r\n");
 			return;
 		}
 		reply("550 create failed, unknow error!");
 	}
 };
+
+class CmdRMD: public Command{
+public:
+	CmdRMD(User *usr): Command(usr){}
+	void process(){
+		char* buf = &user->buffer[user->rw_cur];
+		fs::path p(user->path);
+		if(buf[0] == '/') {
+			p = "/";
+			++buf;
+		}
+		check(buf);
+		p /= buf;
+
+		if(!fs::exists(p)){
+			reply("431 no such directory\r\n");
+			return;
+		}
+		try{
+			uintmax_t removed = fs::remove_all(p);
+			user->rw_cur = sprintf(user->buffer, "%d %d files removed\r\n\0", 250, removed);
+		}catch(...){
+			reply("550 removed failed, unknown error\r\n");
+		}
+	}
+};
+class CmdCDUP: public Command{
+public:
+	CmdCDUP(User* usr): Command(usr){}
+	void process(){
+		fs::path p(user->path);
+		user->rw_cur = sprintf(user->buffer, "200 %s\r\n\0", p.parent_path().c_str());
+	}
+};
+class CmdNOOP: public Command{
+public:
+	CmdNOOP(User *usr): Command(usr){}
+	void process(){
+		reply("200 OK");
+	}
+};
+
 
 class CommandFactory{
 private:
@@ -196,6 +282,9 @@ public:
 				break;
 			case CWD:
 				ptr_cmd = new CmdCWD(user);
+				break;
+			case CDUP:
+				ptr_cmd = new CmdCDUP(user);
 				break;
 //			case REIN:
 //				ptr_cmd = new CmdREIN(user);
@@ -245,12 +334,12 @@ public:
 //			case DELE:
 //				ptr_cmd = new CmdDELE(user);
 //				break;
-//			case RMD:
-//				ptr_cmd = new CmdRMD(user);
-//				break;
-//			case MKD:
-//				ptr_cmd = new CmdMKD(user);
-//				break;
+			case RMD:
+				ptr_cmd = new CmdRMD(user);
+				break;
+			case MKD:
+				ptr_cmd = new CmdMKD(user);
+				break;
 			case PWD:
 				ptr_cmd = new CmdPWD(user);
 				break;
@@ -266,9 +355,9 @@ public:
 //			case HELP:
 //				ptr_cmd = new CmdHELP(user);
 //				break;
-//			case NOOP:
-//				ptr_cmd = new CmdNOOP(user);
-//				break;
+			case NOOP:
+				ptr_cmd = new CmdNOOP(user);
+				break;
 			default:
 				ptr_cmd = new CmdIllegal(user);
 				break;

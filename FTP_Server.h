@@ -91,11 +91,7 @@ public:
 				COMMAND recv_cmd = parse(buf, _user->rw_cur);
 				
 				Command* cmd = CommandFactory(_user).CreateCmd(recv_cmd);
-				std::cout << "[+] succeed, do ->" << recv_cmd 
-					<< " buf->[" << &buf[_user->rw_cur] << "]"
-					<< std::endl;
 				cmd->process();
-				std::cout << "[+] succeed, process" << std::endl;
 				//　阻塞与非阻塞可能有bug
 				send(_sockfd, buf, _user->rw_cur, 0);
 			}
