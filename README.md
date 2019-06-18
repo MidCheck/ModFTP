@@ -12,3 +12,11 @@ An FTP module developed using RFC959 can be used by other software.
 ==> Make a development request and create this project.
 ###2019-5-20
 ==> Install asio and make some test in Ubuntu.
+###2019-6-11
+==> Creating a Server-side Overall Framework.
+###2019-6-16
+==> Complete login function.
+###2019-6-17
+==> Complete simple directory operations. (but with bugs)
+###2019-6-18
+==> Fix bugs and add CDUR command.
