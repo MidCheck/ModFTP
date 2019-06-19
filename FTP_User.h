@@ -11,20 +11,29 @@
 #include<boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 namespace MidCHeck{
-/*语法错误, 合法用户，非法用户，未登录，已登录，已退出, 正在传输中*/
-typedef enum {SYNTAXERR, ILLEGAL, LEGAL, NOTLOGGED, LOGGED, QUITED, TRANSING} Usrstat;
+/*用户状态*/
+typedef enum {
+	/*语法错误, 合法用户，非法用户*/
+	SYNTAXERR,	ILLEGAL,	LEGAL, 
+	/*未登录，已登录，已退出*/
+	NOTLOGGED,	LOGGED,		QUITED, 
+	/*正在传输中, PORT模式，PASV模式*/
+	TRANSING,	MODEPORT,	MODEPASV
+} Usrstat;
 
 /*用户类，存放用户环境变量以及当前信息*/
 class User{
 public:
 	int sockfd;
-	int dsockfd;
+	int dsockfd; // 主动模式的连接套接字,被动模式的侦听套接字
+	int csockfd; // 工作在被动模式
 	std::string name;
 	std::string passwd;
 	std::string home; // 记录用户主目录
 	std::string path; // 记录用户当前路径
 	Usrstat auth;  // 记录用户权限
 	Usrstat status; // 记录用户状态
+	Usrstat mode;
 
 	char buffer[128];
 	int rw_cur;

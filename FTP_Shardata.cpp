@@ -21,7 +21,7 @@ Shardata::Shardata(){
 	cmd_map["CDUP"] = CDUP;
 	cmd_map["QUIT"] = QUIT;
 	cmd_map["REIN"] = REIN;
-	cmd_map["PORT"] = POST;
+	cmd_map["PORT"] = PORT;
 	cmd_map["PASV"] = PASV;
 	cmd_map["TYPE"] = TYPE;
 	cmd_map["STRU"] = STRU;
