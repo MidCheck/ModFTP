@@ -20,3 +20,5 @@ An FTP module developed using RFC959 can be used by other software.
 ==> Complete simple directory operations. (but with bugs)
 ###2019-6-18
 ==> Fix bugs and add CDUR command.
+###2019-6-19
+==> Fix bugs and add LIST, PORT, PASV command.
