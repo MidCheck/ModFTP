@@ -18,6 +18,7 @@ typedef enum {SYNTAXERR, ILLEGAL, LEGAL, NOTLOGGED, LOGGED, QUITED, TRANSING} Us
 class User{
 public:
 	int sockfd;
+	int dsockfd;
 	std::string name;
 	std::string passwd;
 	std::string home; // 记录用户主目录

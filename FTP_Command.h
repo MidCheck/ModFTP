@@ -6,6 +6,14 @@
  ************************************************************************/
 #include <regex>
 #include <cstring>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <time.h>
+#include <grp.h>
+#include <pwd.h>
+#include <unistd.h>
+
 #include "FTP_Shardata.h"
 
 namespace MidCHeck{
@@ -264,8 +272,215 @@ public:
 		reply("200 OK");
 	}
 };
+class CmdPORT: public Command{
+private:
+	struct sockaddr_in serv;
+	struct sockaddr_in guest;
+	char serv_ip[20];
+	char guest_ip[20];
+	void parse_ip(char *src, int& port){
+		char *ptr = src;
+		for(int i = 0; i < 3; ++i){
+			if((ptr = strstr(ptr, ",")) != nullptr){
+				*ptr++ = '.';
+			}
+		}
+		if((ptr = strstr(ptr, ",")) != nullptr){
+			*ptr++ = '\0';
+		}
+		char *next = strstr(ptr, ",");
+		if(next != nullptr) {
+			*next++ = '\0';
+			port = 256*atoi(ptr) + atoi(next);
+		}else{
+			port = atoi(ptr);
+		}
+	}
+public:
+	CmdPORT(User *usr): Command(usr){
+		socklen_t serv_len = sizeof(serv), guest_len = sizeof(guest);
+		getsockname(user->sockfd, (struct sockaddr*)&serv, &serv_len);
+		getpeername(user->sockfd, (struct sockaddr*)&guest, &guest_len);
+		//inet_ntop(AF_INET, &serv.sin_addr, serv_ip, sizeof(serv_ip));
+		inet_ntop(AF_INET, &guest.sin_addr, guest_ip, sizeof(guest_ip));
+		//data = Socket(serv_ip, ntohs(serv.sin_port)-1);
+		if((user->dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+			throw std::runtime_error("socket创建出错!");
+		//serv.sin_family = AF_INET;
+		serv.sin_port = htons(ntohs(serv.sin_port)-1);
+		//serv.sin_addr.s_addr = inet_addr(serv_ip);
+		if(bind(user->dsockfd, (struct sockaddr*)serv, sizeof(struct sockaddr_in)) == -1)
+			throw std::runtime_error("绑定数据端口出错!");
+	}
+	void process(){
+		char* buf = &user->buffer[&user->rw_cur];
+		check(buf);
+		int port;
+		parse_ip(buf, &port); // buf里存放ip
+		guest.sin_port = htons(port);
+		if(strcmp(buf, guest_ip)){ // 如果ip不相等
+			guest.sin_addr.s_addr = inet_addr(buf);
+		}
+		if(connect(user->dsockfd, (struct sockaddr*)guest, sizeof(guest)) == -1)
+			throw std::runtime_error("连接数据端口失败");
+		reply("200 connect ok!");
+	}
+};
+class CmdPASV: public Command{
+public:
+	CmdPASV(User* usr): Command(usr){}
+	void process(){
+		int port = 0;
+		struct sockaddr_in serv;
+		socklen_t serv_len = sizeof(serv);
+		getsockname(user->sockfd, (struct sockaddr*)&serv, &serv_len);
+		/*检测数据socket是否有连接*/
+		struct tcp_info info;
+		int len = sizeof(info);
+		getsockopt(user->dsockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t*)&len);
+		
+		if(info.tcpi_state == TCP_CLOSE){
+			close(user->dsockfd);
+		}
+		if((user->dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+			throw std::runtime_error("socket创建出错!");
+		uint16_t port = ntohs(serv.sin_port) - 1;
+		serv.sin_port = htons(port);
+		if(bind(user->dsockfd, (struct sockaddr*)serv, sizeof(struct sockaddr_in)) == -1)
+			throw std::runtime_error("绑定数据端口出错!");
+		listen(user->dsockfd, 5);
+	}
+};
+class CmdLIST: public Command{
+private:
+	std::vector<std::string> list;
+	void parse_file(fs::path& p, std::string& at){
+		fs::file_status result = status(p);
+		fs::file_type = result.type();
+		fs::perms = result.permissions();
+		// 先看文件类型
+		if(file_type & fs::regular_file){
+			at += '-';
+		}else if(file_type & fs::directory_file){
+			at += 'd';
+		}else if(file_type & fs::sysmlink_file){
+			at += 'l';
+		}else if(file_type & fs::block_file){
+			at += 'b';
+		}else if(file_type & fs::character_file){
+			at += 'c';
+		}else if(file_type & fs::fifo_file){
+			at += 'f';
+		}else if(file_type & fs::socket_file){
+			at += 's';
+		}else{
+			at += '_';
+		}
+		// 查看属主权限
+		if(perms & fs::all_all){
+			at += "rwxrwxrwx";
+		}else{
+			if(perms & fs::owner_all){
+				at += "rwx";
+			}else{
+				if(perms & fs::owner_read){
+					at += "r";
+				}else{
+					at += "-";
+				}
+				if(perms & fs::owner_write){
+					at += "w";
+				}else{
+					at += "-";
+				}
+				if(perms & fs::owner_exe){
+					at += "x";
+				}else{
+					at += "-";
+				}
+			}
+			if(perms & fs::group_all){
+				at += "rwx";
+			}else{
+				if(perms & fs::group_read){
+					at += "r";
+				}else{
+					at += "-";
+				}
+				if(perms & fs::group_write){
+					at += "w";
+				}else{
+					at += "-";
+				}
+				if(perms & fs::group_exe){
+					at += "x";
+				}else{
+					at += "-";
+				}
+			}
+			if(perms & fs::others_all){
+				at += "rwx";
+			}else{
+				if(perms & fs::others_read){
+					at += "r";
+				}else{
+					at += "-";
+				}
+				if(perms & fs::others_write){
+					at += "w";
+				}else{
+					at += "-";
+				}
+				if(perms & fs::others_exe){
+					at += "x";
+				}else{
+					at += "-";
+				}
+			}
+		}
+		try{
+			struct stat file_stat;
+			if((ret = stat(p.c_str(), &file_stat)) == -1)
+				throw std::runtime_error("stat error");
+			struct passwd *ptr = getwuid(file_stat.st_uid);
+			struct group *str = getgrgid(file_stat.st_gid);
+			at += ' ';
+			at += to_string(file_stat.st_nlink);
+			// 接下来把它转为ls的格式即可, string format
+			// 加上属主和属组
+			at += 
+		}catch(std::runtime_error err){
+			std::cerr << err.what() << " line:" << __LINE__ << std::endl;
+		}
+	}
+	void parse_list(fs::path& p, std::vector<std::string>& list){
+			if(fs::is_regular_file(p)){ // 如果是普通文件
+				// 返回文件信息
 
+			}else if(fs::is_directory(p)){ // 如果是目录,返回目录信息
+				
+			}else{
 
+			}
+	}
+public:
+	CmdLIST(User* usr): Command(usr){}
+	void process(){
+		char* buf = &user->buffer[user->rw_cur];
+		check(buf);
+		char* ptr = buf;
+		fs::path p(user->path);
+		if((ptr = strstr(ptr, " ")) != nullptr){
+			if(*ptr == "/"){ p = "/"; ++ptr; }
+			p /= ptr;
+			if(!fs::exists(p)){
+				reply("431 no such file or directory\r\n");
+				return;
+			}
+		}
+
+	}
+};
 class CommandFactory{
 private:
 	User* user;
@@ -292,12 +507,12 @@ public:
 			case QUIT:
 				ptr_cmd = new CmdQUIT(user);
 				break;
-//			case POST:
-//				ptr_cmd = new CmdPOST(user);
-//				break;
-//			case PASV:
-//				ptr_cmd = new CmdPASV(user);
-//				break;
+			case PORT:
+				ptr_cmd = new CmdPORT(user);
+				break;
+			case PASV:
+				ptr_cmd = new CmdPASV(user);
+				break;
 //			case TYPE:
 //				ptr_cmd = new CmdTYPE(user);
 //				break;
