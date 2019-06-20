@@ -150,6 +150,9 @@ public:
 			user->flush();
 			user->wait_data.wait(lk);
 		}
+		close(user->dsockfd);
+		close(user->sockfd);
+		user->status = QUITED;
 		reply("221 closing connection\r\n");
 		return;
 	}
@@ -277,13 +280,21 @@ public:
 		reply("200 OK");
 	}
 };
+/*
+ * 在PORT模式只完成这几项工作:
+ * 1. 如果当前客户第一次指定此模式，则创建套接字并绑定控制端口－１，尝试去连接客户
+ *　　假定客户已经打开PORT指定的端口，则成功
+ * 2. 如果当前客户重新指定此模式，则检测套接字是否被关闭，如果关闭回到第一步，
+ *	　否则直接用此套接字去连接客户端
+ * 3. 如果是由PASV模式切换而来，则检测套接字是否关闭，如果关闭，回到第一步，
+ *	　如果没有关闭，检测是否可以绑定套接字端口，如果不能，直接连接
+ *	-------------------------------------------------------------------------
+ *	更改方案: 每当用户指定PORT模式,随机打开一个端口去连接用户
+ */
 class CmdPORT: public Command{
 private:
-	struct sockaddr_in serv;
-	struct sockaddr_in guest;
-	char serv_ip[20];
 	char guest_ip[20];
-	void parse_ip(char *src, int& port){
+	void parse_ip(char *src, uint16_t& port){
 		char *ptr = src;
 		for(int i = 0; i < 3; ++i){
 			if((ptr = strstr(ptr, ",")) != nullptr){
@@ -304,110 +315,76 @@ private:
 	}
 public:
 	CmdPORT(User *usr): Command(usr){
-		socklen_t serv_len = sizeof(serv), guest_len = sizeof(guest);
-		getsockname(user->sockfd, (struct sockaddr*)&serv, &serv_len);
-		getpeername(user->sockfd, (struct sockaddr*)&guest, &guest_len);
-		//inet_ntop(AF_INET, &serv.sin_addr, serv_ip, sizeof(serv_ip));
-		inet_ntop(AF_INET, &guest.sin_addr, guest_ip, sizeof(guest_ip));
-		//data = Socket(serv_ip, ntohs(serv.sin_port)-1);
+		socklen_t guest_len = sizeof(user->guest);
+		getpeername(user->sockfd, (struct sockaddr*)&user->guest, &guest_len);
+		inet_ntop(AF_INET, &user->guest.sin_addr, guest_ip, sizeof(guest_ip));
 		try{
 			if((user->dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
-				throw std::runtime_error("socket创建出错!");
-		}catch(std::runtime_error err){
-			std::cerr << err.what() << " line: " << __LINE__ << std::endl;
-			exit(1);
-		}
-		//serv.sin_family = AF_INET;
-		serv.sin_port = htons(ntohs(serv.sin_port)-1);
-		
-		std::cout << "Serv Port:" << ntohs(serv.sin_port) 
-				<< " Clin Port:" << ntohs(guest.sin_port)
-				<< " Port:" << ntohs(serv.sin_port) - 1
-				<< std::endl;
-		
-		//serv.sin_addr.s_addr = inet_addr(serv_ip);
-		try{
-			if(bind(user->dsockfd, (struct sockaddr*)&serv, sizeof(struct sockaddr_in)) == -1)
-				throw std::runtime_error("PORT 绑定数据端口出错!");
-		}catch(std::runtime_error err){
-			std::cerr << err.what() << " line: " << __LINE__ << std::endl;
-			/*
-			std::cerr << "Serv Port:" << ntohs(serv.sin_port) 
-				<< " Clin Port:" << ntohs(guest.sin_port)
-				<< " Port:" << ntohs(serv.sin_port) - 1
-				<< std::endl;
-			*/
-			//exit(1);
+				mcthrow("socket创建出错!");
+		}catch(MCErr err){
+			std::cerr << err.what() << std::endl;
+			reply("421 can't create socket, close connection");
+			user->flush();
+			close(user->sockfd);
 		}
 	}
 	void process(){
 		char* buf = &user->buffer[user->rw_cur];
 		check(buf);
-		int port;
-		parse_ip(buf, port); // buf里存放ip
-		guest.sin_port = htons(port);
+		parse_ip(buf, user->port); // buf里存放ip
+		user->guest.sin_port = htons(user->port);
 		
-		std::cout << " [PORT] port:" << port << std::endl;
-		try{
-			if(strcmp(buf, guest_ip)){ // 如果ip不相等
-				guest.sin_addr.s_addr = inet_addr(buf);
-			}
-			if(connect(user->dsockfd, (struct sockaddr*)&guest, sizeof(guest)) == -1)
-				throw std::runtime_error("PORT连接数据端口失败");
-		}catch(std::runtime_error err){
-			std::cerr << err.what() << " line: " << __LINE__ << std::endl;
-			std::cerr << "Port:" << port << std::endl;
-			//exit(1);
+		std::cout << " [PORT] port:" << user->port << std::endl;
+		if(strcmp(buf, guest_ip)){ // 如果ip不相等
+			user->guest.sin_addr.s_addr = inet_addr(buf);
 		}
-		reply("200 connect ok!");
+		reply("200 ready for connect");
 		user->mode = MODEPORT;
 	}
 };
+
+/*检测数据socket是否有连接*/
+//struct tcp_info info;
+//int len = sizeof(info);
+//getsockopt(user->dsockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t*)&len);
+//if(info.tcpi_state != TCP_CLOSE){
+//	close(user->dsockfd);
+//}
+
+/* PASV模式:
+ * 1. 在全局绑定监听地址
+ * 2. 其它用户异步连接此端口传输数据
+ */
 class CmdPASV: public Command{
+private:
+	socklen_t serv_len;
 public:
-	CmdPASV(User* usr): Command(usr){}
+	CmdPASV(User* usr): Command(usr), serv_len(sizeof(user->serv)){ }
 	void process(){
-		struct sockaddr_in serv;
-		socklen_t serv_len = sizeof(serv);
-		getsockname(user->sockfd, (struct sockaddr*)&serv, &serv_len);
-		uint16_t port = ntohs(serv.sin_port) - 1;
-		serv.sin_port = htons(port);
-		/*检测数据socket是否有连接*/
-		struct tcp_info info;
-		int len = sizeof(info);
-		getsockopt(user->dsockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t*)&len);
-		if(info.tcpi_state != TCP_CLOSE){
-			close(user->dsockfd);
-		}
+		if(user->mode == MODEPASV) return;
+		getsockname(user->sockfd, (struct sockaddr*)&user->serv, &serv_len);
+		user->port = ntohs(user->serv.sin_port) - 1;
+		user->serv.sin_port = htons(user->port);
+
+		if((user->dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+			mcthrow("PASV socket创建出错!");
 		try{
-			if((user->dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
-				throw std::runtime_error("[-] PASV socket创建出错!");
-			std::cout << " [PASV] Port:" << ntohs(serv.sin_port)-1 << std::endl;
-			if(bind(user->dsockfd, (struct sockaddr*)&serv, sizeof(struct sockaddr_in)) == -1)
-				throw std::runtime_error("[-] PASV绑定数据端口出错!");
-		}catch(std::runtime_error e){
+			std::cout << " [PASV] Port:" << user->port << std::endl;
+			if(bind(user->dsockfd, (struct sockaddr*)&user->serv, sizeof(struct sockaddr_in)) == -1)
+				mcthrow("PASV 绑定数据端口出错!");
+		}catch(MCErr e){
 			std::cerr << e.what() << std::endl 
 				<< "\t可能重复绑定，程序继续..." << std::endl;
 		}
-		strcpy(user->buffer, "227 entering Passive Mode (");
-		user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
-		inet_ntop(AF_INET, &serv.sin_addr, &user->buffer[user->rw_cur], 20);
-		user->rw_cur = strlen(user->buffer);
-		user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n\0", port / 256, port % 256);
-		// replace all '.' to ',' 
-		char *ptr_dot = user->buffer;
-		while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
-		user->flush();
 
-		// listened
 		try{
 			if(listen(user->dsockfd, 5) == -1)
-				throw std::runtime_error("[-] listen失败!");
+				mcthrow("[-] listen失败!");
 			reply("150 file status okay, will open data connection.\r\n");
 			//user->flush();
-		}catch(std::runtime_error err){
-			std::cerr << err.what() << " line: " << __LINE__ << std::endl;
-			std::cerr << "Port:" << ntohs(serv.sin_port)-1 << std::endl;
+		}catch(MCErr err){
+			std::cerr << err.what() << std::endl;
+			std::cerr << "Port:" << user->port << std::endl;
 			reply("425 can't bind socket, please send PASV again\r\n");
 		}
 		user->mode = MODEPASV;
@@ -520,36 +497,65 @@ public:
 		}
 		list[0] += "\r\n";
 		/*检测数据socket是否有连接*/
-		struct tcp_info info;
-		int len = sizeof(info);
-		getsockopt(user->dsockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t*)&len);
-		if(info.tcpi_state == TCP_CLOSE){
-			close(user->dsockfd);
-		}
+		//struct tcp_info info;
+		//int len = sizeof(info);
+		//getsockopt(user->dsockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t*)&len);
+		//if(info.tcpi_state == TCP_CLOSE){
+		//	close(user->dsockfd);
+		//}
 		if(user->mode == MODEPORT){
 			// connected
 			try{
+				if(connect(user->dsockfd, (struct sockaddr*)&user->guest, sizeof(user->guest)) == -1)
+					mcthrow("List 连接失败");
 				if(send(user->dsockfd, list[0].c_str(), list[0].length(), 0) == -1)
-					throw std::runtime_error("send list error");
-			}catch(std::runtime_error err){
-				std::cerr << err.what() << " line: " << __LINE__ << std::endl;
-				reply("425 can't open data connection, please send PORT command\r\n");
+					mcthrow("send list error");
+				close(user->dsockfd);
+			}catch(MCErr err){
+				std::cerr << err.what() << std::endl
+					<< "port:" << ntohs(user->guest.sin_port) << std::endl;
+				reply("425 can't open data connection, please send PORT command before use LIST command\r\n");
 				return;
 			}
 		}else{
+			// 进入PASV模式
+			// 给客户端发送IP以及端口
+			strcpy(user->buffer, "227 entering Passive Mode (");
+			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
+			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			user->rw_cur = strlen(user->buffer);
+			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n\0", user->port / 256, user->port % 256);
+			// replace all '.' to ',' 
+			char *ptr_dot = user->buffer;
+			while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
+			user->flush();
+			
 			struct sockaddr_in client_address;
 			socklen_t clen = sizeof(client_address);
 			// 应设置为非阻塞//阻塞死了,整个连接断掉
-			user->csockfd = accept(user->dsockfd, (struct sockaddr*)&client_address, &clen);
+			int conn = accept(user->dsockfd, (struct sockaddr*)&client_address, &clen);
 			reply("125 data connection already open, transfer starting.\r\n");
 			user->flush();
-			send(user->csockfd, list[0].c_str(), list[0].length(), 0);
+			send(conn, list[0].c_str(), list[0].length(), 0);
 			reply("250 request file action okay, completed.\r\n");
 			user->flush();
-			close(user->csockfd);
+			close(conn);
 		}
-		close(user->dsockfd);
 		reply("226 closed data connection\r\n");
+	}
+};
+
+// 实现下一个命令
+class CmdRETR: public Command{
+public:
+	CmdRETR(User *usr): Command(usr){}
+	void process(){
+		char* buf = &user->buffer[user->rw_cur];
+		fs::path p(user->home);
+		if(*buf == '/'){ p = "/"; ++buf; }
+		check(buf);
+		p /= buf;
+
 	}
 };
 class CommandFactory{
@@ -596,9 +602,9 @@ public:
 //			case SIZE:
 //				ptr_cmd = new CmdSIZE(user);
 //				break;
-//			case RETR:
-//				ptr_cmd = new CmdRETR(user);
-//				break;
+			case RETR:
+				ptr_cmd = new CmdRETR(user);
+				break;
 //			case STOR:
 //				ptr_cmd = new CmdSTOR(user);
 //				break;

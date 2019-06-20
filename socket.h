@@ -4,6 +4,8 @@
     > Mail: midcheck@foxmail.com 
     > Created Time: 2019年06月04日 星期二 12时56分01秒
  ************************************************************************/
+#ifndef MIDCHECK_SOCKET_H
+#define MIDCHECK_SOCKET_H
 /* socket类，对不同平台的socket的封装
  * 线程安全型
  */
@@ -64,16 +66,17 @@
 #endif
 
 #include<iostream>
-#include<string>
+#include "exception.h"
 
 namespace MidCHeck{
 class Socket{
 protected:
 #ifdef __linux__
-	int sock;
+	int sock;  // 控制连接
+	int dsock; // 数据连接
 #elif _WIN32
 	WSADATA wsaData;
-	SOCKET sock;
+	SOCKET sock; 
 #endif
 	sockaddr_in sock_addr;
 public:
@@ -83,19 +86,23 @@ public:
 		WORD sockVersion = MAKEWORD(2, 2);
 		try{
 			if((err = WSAStartup(sockVersion, &wsaData)) != 0)
-				throw std::runtime_error("初始化WSADATA失败!");
+				mcthrow("初始化WSADATA失败!");
 			else if(LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion)!= 2){
 				WSACleanup();
-				throw runtime_error("不支持当前版本的socket!");
+				mcthrow("不支持当前版本的socket!");
 			}
-		}catch(runtime_error err){
+		}catch(MCErr err){
 			// 初始化失败
 			std::cerr << err.what()
 				<< "\n请检查当前WSADATA初始化" << std::endl;
 		}
 		#endif
-		if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
-			throw std::runtime_error("socket创建出错!");
+		try{
+			if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+				mcthrow("监听socket创建出错!");
+		}catch(MCErr err){
+			std::cerr << err.what() << std::endl;
+		}
 		sock_addr.sin_family = AF_INET;
 		sock_addr.sin_port = htons(port);
 		sock_addr.sin_addr.s_addr = inet_addr(ip);
@@ -116,3 +123,5 @@ public:
 int setnonblocking(int fd);
 #endif
 } // 命名空间MidCHeck结束
+
+#endif

@@ -4,16 +4,13 @@
     > Mail: midcheck@foxmail.com 
     > Created Time: 2019年06月08日 星期六 02时25分09秒
  ************************************************************************/
-#ifndef FTP_SERVER_H
-#define FTP_SERVER_H
+#ifndef MIDCHECK_FTP_SERVER_H
+#define MIDCHECK_FTP_SERVER_H
 
 #include "server.h"
-//#include "FTP_User.h"
 #include "FTP_Command.h"
-//#include "Database.h"
 
 #include<thread>
-//#include<unordered_map>
 #include<string.h>
 
 #include<vector>
@@ -106,14 +103,12 @@ private:
 	int epollfd;
 public:
 	FTP_Server(const char* ip, int port):Server(ip, port){
-		if((epollfd = epoll_create(5)) == -1) throw "Create epoll Failed!";
+		if((epollfd = epoll_create(5)) == -1) mcthrow("Create epoll Failed!");
 		addfd(epollfd, this->sock, false);
 	}
 	~FTP_Server(){ this->~Server(); }
 	void start();
 
-	//void PI(const char* op);
-	//void DTP();
 	#ifdef __linux__
 	friend void addfd(int, int, bool);
 	friend void reset_oneshot(int, int);

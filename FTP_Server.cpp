@@ -23,8 +23,8 @@ COMMAND Worker::parse(char* buf, int& cur){
 void FTP_Server::start(){
 	while(1){
 		int ret = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
-		std::cout << "epoll_wait" << std::endl;
-		if(ret < 0) throw "[-] epoll failure";
+		std::cout << "epoll_wait: " << ret << std::endl;
+		if(ret < 0) mcthrow("epoll failure");
 		for(int i = 0; i < ret; ++i){
 			int sockfd = events[i].data.fd;
 			if(sockfd == this->sock){
@@ -32,8 +32,9 @@ void FTP_Server::start(){
 				socklen_t client_addrlength = sizeof(client_address);
 				int connfd = accept(this->sock, (struct sockaddr*)&client_address,
 						&client_addrlength);
+				int len = sizeof("220 Welcome to my FTP site!\r\n") - 1;
 				const char *ftp_220 = "220 Welcome to my FTP site!\r\n";
-				send(connfd, ftp_220, strlen(ftp_220), 0);
+				send(connfd, ftp_220, len , 0);
 				/*对每个非监听文件描述符都注册EPOLLONESHOT事件*/
 				addfd(epollfd, connfd, true);
 			}else if(events[i].events & EPOLLIN){
@@ -41,7 +42,7 @@ void FTP_Server::start(){
 				std::thread my_thread(work);
 				my_thread.detach();
 			}else {
-				std::cout << "[?] something else happeded" << std::endl;
+				std::cerr << "[?] something else happeded" << std::endl;
 			}
 		}
 	}
