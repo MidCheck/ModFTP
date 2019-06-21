@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/sendfile.h>
 #include <netinet/tcp.h>
 #include <unistd.h>
 #include <time.h>
@@ -478,7 +479,7 @@ public:
 		check(buf);
 		p /= buf;
 		if(!fs::exists(p)){
-			reply("431 no such file or directory\r\n");
+			reply("550 no such file or directory\r\n");
 			return;
 		}
 		std::vector<std::string> list;
@@ -555,9 +556,147 @@ public:
 		if(*buf == '/'){ p = "/"; ++buf; }
 		check(buf);
 		p /= buf;
-
+		if(!fs::exists(p)){
+			reply("550 no such file or directory\r\n");
+			return;
+		}
+		if(fs::is_directory(p)){
+			reply("450 not allow directory\r\n");
+			return;
+		}
+		int filefd = 0;
+		try{
+			filefd = open(p.c_str(), O_RDONLY);
+			if(filefd <= 0) mcthrow("can't open file!");
+			reply("150 file status okay, will open data connection\r\n");
+			user->flush();
+		}catch(MCErr err){
+			std::cerr << err.what() << std::endl;
+			reply("450 can't open file!");
+			return;
+		}
+		if(user->mode == MODEPORT){
+			// connected
+			try{
+				if(connect(user->dsockfd, (struct sockaddr*)&user->guest, sizeof(user->guest)) == -1)
+					mcthrow("连接失败");
+				reply("125 data connection already open, transfer starting.\r\n");
+				user->flush();
+				if(sendfile(user->dsockfd, filefd, NULL, fs::file_size(p)) == -1)
+					mcthrow("sendfile error");
+				close(user->dsockfd);
+			}catch(MCErr err){
+				std::cerr << err.what() << std::endl;
+				reply("425 can't open data connection, please send PORT command before use RETR command\r\n");
+				return;
+			}
+		}else{
+			// 进入PASV模式
+			// 给客户端发送IP以及端口
+			strcpy(user->buffer, "227 entering Passive Mode (");
+			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
+			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			user->rw_cur = strlen(user->buffer);
+			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n\0", user->port / 256, user->port % 256);
+			// replace all '.' to ',' 
+			char *ptr_dot = user->buffer;
+			while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
+			user->flush();
+			
+			struct sockaddr_in client_address;
+			socklen_t clen = sizeof(client_address);
+			// 应设置为非阻塞//阻塞死了,整个连接断掉
+			int conn = accept(user->dsockfd, (struct sockaddr*)&client_address, &clen);
+			reply("125 data connection already open, transfer starting.\r\n");
+			user->flush();
+			try{
+				if(sendfile(conn, filefd, NULL, fs::file_size(p)) == -1)
+					mcthrow("sendfile error");
+				close(conn);
+			}catch(MCErr err){
+				std::cerr << err.what() << std::endl;
+				reply("421 can't sendfile, close connection\r\n");
+				close(conn);
+				return;
+			}
+		}
+		reply("250 request file action okay, completed.\r\n");
 	}
 };
+class CmdSTOR: Command{
+public:
+	CmdSTOR(User *usr): Command(usr){}
+	void process(){
+		char* buf = &user->buffer[user->rw_cur];
+		fs::path p(user->home);
+		if(*buf == '/'){ p = "/"; ++buf; }
+		check(buf);
+		p /= buf;
+		bool file_exist = false;
+		if(fs::exists(p)){
+			file_exist = true;
+		}
+
+		int filefd = 0;
+		// 打开要存储的文件，接收传输内容并将其写入，设置相应权限
+		try{
+			filefd = open(p.c_str(), O_RDONLY);
+			if(filefd <= 0) mcthrow("can't open file!");
+			reply("150 file status okay, will open data connection\r\n");
+			user->flush();
+		}catch(MCErr err){
+			std::cerr << err.what() << std::endl;
+			reply("450 can't open file!");
+			return;
+		}
+		if(user->mode == MODEPORT){
+			// connected
+			try{
+				if(connect(user->dsockfd, (struct sockaddr*)&user->guest, sizeof(user->guest)) == -1)
+					mcthrow("连接失败");
+				reply("125 data connection already open, transfer starting.\r\n");
+				user->flush();
+				if(sendfile(user->dsockfd, filefd, NULL, fs::file_size(p)) == -1)
+					mcthrow("sendfile error");
+				close(user->dsockfd);
+			}catch(MCErr err){
+				std::cerr << err.what() << std::endl;
+				reply("425 can't open data connection, please send PORT command before use RETR command\r\n");
+				return;
+			}
+		}else{
+			// 进入PASV模式
+			// 给客户端发送IP以及端口
+			strcpy(user->buffer, "227 entering Passive Mode (");
+			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
+			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			user->rw_cur = strlen(user->buffer);
+			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n\0", user->port / 256, user->port % 256);
+			// replace all '.' to ',' 
+			char *ptr_dot = user->buffer;
+			while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
+			user->flush();
+			
+			struct sockaddr_in client_address;
+			socklen_t clen = sizeof(client_address);
+			// 应设置为非阻塞//阻塞死了,整个连接断掉
+			int conn = accept(user->dsockfd, (struct sockaddr*)&client_address, &clen);
+			reply("125 data connection already open, transfer starting.\r\n");
+			user->flush();
+			try{
+				if(sendfile(conn, filefd, NULL, fs::file_size(p)) == -1)
+					mcthrow("sendfile error");
+				close(conn);
+			}catch(MCErr err){
+				std::cerr << err.what() << std::endl;
+				reply("421 can't sendfile, close connection\r\n");
+				close(conn);
+				return;
+			}
+		}
+		reply("250 request file action okay, completed.\r\n");
+	}
+}; 
 class CommandFactory{
 private:
 	User* user;
@@ -605,9 +744,9 @@ public:
 			case RETR:
 				ptr_cmd = new CmdRETR(user);
 				break;
-//			case STOR:
-//				ptr_cmd = new CmdSTOR(user);
-//				break;
+			case STOR:
+				ptr_cmd = new CmdSTOR(user);
+				break;
 //			case ALLO:
 //				ptr_cmd = new CmdALLO(user);
 //				break;
