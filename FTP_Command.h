@@ -584,6 +584,7 @@ public:
 				user->flush();
 				if(sendfile(user->dsockfd, filefd, NULL, fs::file_size(p)) == -1)
 					mcthrow("sendfile error");
+				close(filefd);
 				close(user->dsockfd);
 			}catch(MCErr err){
 				std::cerr << err.what() << std::endl;
@@ -612,6 +613,7 @@ public:
 			try{
 				if(sendfile(conn, filefd, NULL, fs::file_size(p)) == -1)
 					mcthrow("sendfile error");
+				close(filefd);
 				close(conn);
 			}catch(MCErr err){
 				std::cerr << err.what() << std::endl;
@@ -623,7 +625,7 @@ public:
 		reply("250 request file action okay, completed.\r\n");
 	}
 };
-class CmdSTOR: Command{
+class CmdSTOR:public Command{
 public:
 	CmdSTOR(User *usr): Command(usr){}
 	void process(){
@@ -632,15 +634,26 @@ public:
 		if(*buf == '/'){ p = "/"; ++buf; }
 		check(buf);
 		p /= buf;
-		bool file_exist = false;
+		bool file_exist = false, pip_flag = true;
 		if(fs::exists(p)){
 			file_exist = true;
 		}
 
 		int filefd = 0;
 		// 打开要存储的文件，接收传输内容并将其写入，设置相应权限
+		int flag = 0;
+		if(!file_exist) flag |= O_CREAT;
+		flag |= O_WRONLY;
+		// 根据相应用户，设置相应权限
+		// 得到用户权限
+		// get_user_mask() 0744
+		flag |= (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+		// 创建一个管道，用于splice函数
+		int pipefd[2];
+		int ret = pipe(pipefd);
+		int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
 		try{
-			filefd = open(p.c_str(), O_RDONLY);
+			filefd = open(p.c_str(), flag);
 			if(filefd <= 0) mcthrow("can't open file!");
 			reply("150 file status okay, will open data connection\r\n");
 			user->flush();
@@ -656,12 +669,17 @@ public:
 					mcthrow("连接失败");
 				reply("125 data connection already open, transfer starting.\r\n");
 				user->flush();
-				if(sendfile(user->dsockfd, filefd, NULL, fs::file_size(p)) == -1)
-					mcthrow("sendfile error");
+				do{
+					ret = splice(user->dsockfd, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+					if(ret == -1) mcthrow("splice写入管道出错!");
+					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+					if(ret == -1) mcthrow("splice从管道读入出错!");
+				}while(ret);
+				close(filefd);
 				close(user->dsockfd);
 			}catch(MCErr err){
 				std::cerr << err.what() << std::endl;
-				reply("425 can't open data connection, please send PORT command before use RETR command\r\n");
+				reply("425 can't open data connection, please send PORT command before use STOR command\r\n");
 				return;
 			}
 		}else{
@@ -684,8 +702,13 @@ public:
 			reply("125 data connection already open, transfer starting.\r\n");
 			user->flush();
 			try{
-				if(sendfile(conn, filefd, NULL, fs::file_size(p)) == -1)
-					mcthrow("sendfile error");
+				do{
+					ret = splice(conn, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+					if(ret == -1) mcthrow("splice写入管道出错!");
+					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+					if(ret == -1) mcthrow("splice从管道读入出错!");
+				}while(ret);
+				close(filefd);
 				close(conn);
 			}catch(MCErr err){
 				std::cerr << err.what() << std::endl;
@@ -697,6 +720,25 @@ public:
 		reply("250 request file action okay, completed.\r\n");
 	}
 }; 
+
+class CmdDELE: public Command{
+public:
+	CmdDELE(User *usr): Command(usr){}
+	void process(){
+		char* buf = &user->buffer[user->rw_cur];
+		fs::path p(user->home);
+		if(*buf == '/'){ p = "/"; ++buf; }
+		check(buf);
+		p /= buf;
+		if(!fs::exists(p)){
+			reply("550 no such this file or directory\r\n");
+		}else{
+			user->rw_cur = sprintf(user->buffer, "200 %d files removed\r\n\0", fs::remove_all(p));
+		}
+	}
+};
+
+
 class CommandFactory{
 private:
 	User* user;
@@ -762,9 +804,9 @@ public:
 //			case ABOR:
 //				ptr_cmd = new CmdABOR(user);
 //				break;
-//			case DELE:
-//				ptr_cmd = new CmdDELE(user);
-//				break;
+			case DELE:
+				ptr_cmd = new CmdDELE(user);
+				break;
 			case RMD:
 				ptr_cmd = new CmdRMD(user);
 				break;
