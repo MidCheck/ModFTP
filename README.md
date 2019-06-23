@@ -24,3 +24,5 @@ An FTP module developed using RFC959 can be used by other software.
 ==> Fix bugs and add LIST, PORT, PASV command.
 ###2019-6-20
 ==> Fix bugs of PASV and LIST
+###2019-6-23
+==> Add STOR and RETR command.
