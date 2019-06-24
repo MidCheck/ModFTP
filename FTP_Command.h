@@ -135,7 +135,7 @@ class CmdPWD: public Command{
 public:
 	CmdPWD(User* usr):Command(usr){}
 	void process(){
-		user->rw_cur = sprintf(user->buffer, "%d-\"%s\" directory already exists;\n%d taking no action.\r\n\0", 521, this->user->path.c_str(), 521);
+		user->rw_cur = sprintf(user->buffer, "%d-\"%s\" directory already exists;\n%d taking no action.\r\n", 521, this->user->path.c_str(), 521);
 		return;
 	}
 };
@@ -195,16 +195,16 @@ public:
 		}
 
 		if(!fs::exists(p)){
-			user->rw_cur = sprintf(user->buffer, "431 no such directory %s\r\n\0", p.c_str());
+			user->rw_cur = sprintf(user->buffer, "431 no such directory %s\r\n", p.c_str());
 			return;
 		}
 		if(!fs::is_directory(p)){
-			user->rw_cur = sprintf(user->buffer, "%d %s is not a directory\r\n\0", 550, p.c_str());
+			user->rw_cur = sprintf(user->buffer, "%d %s is not a directory\r\n", 550, p.c_str());
 			return;
 		}
 		//current_path(p);
 		user->path = p.string();
-		user->rw_cur = sprintf(user->buffer, "200 working directory changed to %s\r\n\0", p.c_str());
+		user->rw_cur = sprintf(user->buffer, "200 working directory changed to %s\r\n", p.c_str());
 	}
 };
 
@@ -222,7 +222,7 @@ public:
 		p /= buf;
 
 		if(fs::exists(p)){
-			user->rw_cur = sprintf(user->buffer, "%d-\"%s\" directory already exists;\n%d taking no action.\r\n\0", 521, p.c_str(), 521);
+			user->rw_cur = sprintf(user->buffer, "%d-\"%s\" directory already exists;\n%d taking no action.\r\n", 521, p.c_str(), 521);
 			return;
 		}
 		try{
@@ -230,7 +230,7 @@ public:
 				?fs::create_directory(p)
 				:fs::create_directories(p);
 			if(flag){
-				user->rw_cur = sprintf(user->buffer, "%d %s directory created\r\n\0", 257, p.c_str());	
+				user->rw_cur = sprintf(user->buffer, "%d %s directory created\r\n", 257, p.c_str());	
 				return;
 			}
 		}catch(...){
@@ -260,7 +260,7 @@ public:
 		}
 		try{
 			uintmax_t removed = fs::remove_all(p);
-			user->rw_cur = sprintf(user->buffer, "%d %d files removed\r\n\0", 250, removed);
+			user->rw_cur = sprintf(user->buffer, "%d %lu files removed\r\n", 250, removed);
 		}catch(...){
 			reply("550 removed failed, unknown error\r\n");
 		}
@@ -271,7 +271,7 @@ public:
 	CmdCDUP(User* usr): Command(usr){}
 	void process(){
 		fs::path p(user->path);
-		user->rw_cur = sprintf(user->buffer, "200 %s\r\n\0", p.parent_path().c_str());
+		user->rw_cur = sprintf(user->buffer, "200 %s\r\n", p.parent_path().c_str());
 	}
 };
 class CmdNOOP: public Command{
@@ -525,7 +525,7 @@ public:
 			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
 			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
 			user->rw_cur = strlen(user->buffer);
-			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n\0", user->port / 256, user->port % 256);
+			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
 			char *ptr_dot = user->buffer;
 			while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
@@ -598,7 +598,7 @@ public:
 			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
 			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
 			user->rw_cur = strlen(user->buffer);
-			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n\0", user->port / 256, user->port % 256);
+			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
 			char *ptr_dot = user->buffer;
 			while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
@@ -689,7 +689,7 @@ public:
 			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
 			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
 			user->rw_cur = strlen(user->buffer);
-			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n\0", user->port / 256, user->port % 256);
+			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
 			char *ptr_dot = user->buffer;
 			while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
@@ -733,7 +733,7 @@ public:
 		if(!fs::exists(p)){
 			reply("550 no such this file or directory\r\n");
 		}else{
-			user->rw_cur = sprintf(user->buffer, "200 %d files removed\r\n\0", fs::remove_all(p));
+			user->rw_cur = sprintf(user->buffer, "200 %lu files removed\r\n", fs::remove_all(p));
 		}
 	}
 };

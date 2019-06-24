@@ -17,7 +17,7 @@
 
 #ifdef __linux__
 #include<sys/epoll.h>
-#include<pthread.h>
+//#include<pthread.h>
 #define MAX_EVENT_NUMBER 1024
 #endif
 

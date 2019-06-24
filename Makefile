@@ -1,28 +1,29 @@
 # Using 1.70.0 in Ubuntu 18.04
 
-#BOOST = /usr/local
-#INCLUDES += -I$(BOOST)/include -Iinclude
-#LIBS += -L$(BOOST)/lib -lboost_filesystem -lpthread
-#CFLAGS= $(LIBS) 
-CFLAGS = -l pthread -l boost_filesystem
+GCC = g++
+BOOST = /usr/local
+INCLUDES += -I$(BOOST)/include -Iinclude
+LIBS +=  -L$(BOOST)/lib -lboost_filesystem -lpthread
+CFLAGS= $(INCLUDES) $(LIBS)
+#CFLAGS = -l pthread -l boost_filesystem
 objs = socket.o FTP_Shardata.o FTP_Server.o
 
 all: main
 
 main: main.cpp $(objs)
-	g++ $(CFLAGS) -o $@ $< -Wl,$(objs) 
+	$(GCC)  -o $@  $< -Wl,$(objs) $(CFLAGS)
 
 FTP_Server.o: FTP_Server.cpp FTP_Server.h FTP_Command.h server.h
-	g++ -c $<
+	$(GCC)  -c $<
 
 FTP_Shardata.o: FTP_Shardata.cpp FTP_Shardata.h FTP_User.h Database.h
-	g++ -c $<
+	$(GCC)  -c $<
 
 socket.o: socket.cpp socket.h exception.h
-	g++ -c $<
+	$(GCC)  -c $<
 
 test:
-	g++ $(CFLAGS) -o $@ test.cpp
+	g++ -o $@ test.cpp
 
 clean:
 	rm $(objs)

@@ -181,5 +181,6 @@ int main(int argc, char **argv){
 			}
 	//	}
 //	}
+	std::cout << at << endl;
 	return 0;
 }
