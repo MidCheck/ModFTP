@@ -492,7 +492,7 @@ public:
 		}else{
 			// 如果是当前目录
 			for(int i = 0; it != list.end(); ++it, ++i){
-				if(i % 5 == 0) list[0] += '\n';
+				if((i+1) % 5 == 0) list[0] += '\n';
 				list[0] += '\t' + *it;
 			}
 		}

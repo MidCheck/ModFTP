@@ -22,7 +22,7 @@ void query(const char* name, MidCHeck::Database* db){
 }
 int main(int argc, char **argv){
 	MidCHeck::Database* db = new MidCHeck::Database;
-	db->add("wangsan", "123456", "/home/zero");
+	db->add("wangsan", "123456", "/home/midcheck");
 	db->add("zhangsi", "1sda2");
 	db->add("lisi", "3dsda$");
 	db->add("huangs", "ed33");
