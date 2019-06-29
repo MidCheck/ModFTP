@@ -73,7 +73,6 @@ class Socket{
 protected:
 #ifdef __linux__
 	int sock;  // 控制连接
-	int dsock; // 数据连接
 #elif _WIN32
 	WSADATA wsaData;
 	SOCKET sock; 
