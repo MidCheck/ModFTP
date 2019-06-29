@@ -497,13 +497,7 @@ public:
 			}
 		}
 		list[0] += "\r\n";
-		/*检测数据socket是否有连接*/
-		//struct tcp_info info;
-		//int len = sizeof(info);
-		//getsockopt(user->dsockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t*)&len);
-		//if(info.tcpi_state == TCP_CLOSE){
-		//	close(user->dsockfd);
-		//}
+
 		if(user->mode == MODEPORT){
 			// connected
 			try{
@@ -518,7 +512,7 @@ public:
 				reply("425 can't open data connection, please send PORT command before use LIST command\r\n");
 				return;
 			}
-		}else{
+		}else if(user->mode == MODEPASV){
 			// 进入PASV模式
 			// 给客户端发送IP以及端口
 			strcpy(user->buffer, "227 entering Passive Mode (");
@@ -541,6 +535,9 @@ public:
 			reply("250 request file action okay, completed.\r\n");
 			user->flush();
 			close(conn);
+		}else{
+			reply("226 need to specify mode.\r\n");
+			return;
 		}
 		reply("226 closed data connection\r\n");
 	}
@@ -672,9 +669,10 @@ public:
 				do{
 					ret = splice(user->dsockfd, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 					if(ret == -1) mcthrow("splice写入管道出错!");
+					else if(ret == 0) break;
 					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 					if(ret == -1) mcthrow("splice从管道读入出错!");
-				}while(ret);
+				}while(ret && ret == pipe_size);
 				close(filefd);
 				close(user->dsockfd);
 			}catch(MCErr err){
@@ -682,7 +680,7 @@ public:
 				reply("425 can't open data connection, please send PORT command before use STOR command\r\n");
 				return;
 			}
-		}else{
+		}else if(user->mode == MODEPASV){
 			// 进入PASV模式
 			// 给客户端发送IP以及端口
 			strcpy(user->buffer, "227 entering Passive Mode (");
@@ -703,11 +701,12 @@ public:
 			user->flush();
 			try{
 				do{
+					// 陷入阻塞
 					ret = splice(conn, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 					if(ret == -1) mcthrow("splice写入管道出错!");
+					else if(ret == 0) break;
 					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
-					if(ret == -1) mcthrow("splice从管道读入出错!");
-				}while(ret);
+				}while(ret && ret == pipe_size); // 如果小于管道大小，说明已传输完毕
 				close(filefd);
 				close(conn);
 			}catch(MCErr err){
@@ -716,6 +715,9 @@ public:
 				close(conn);
 				return;
 			}
+		}else{
+			reply("226 need to specify mode.\r\n");
+			return;
 		}
 		reply("250 request file action okay, completed.\r\n");
 	}
@@ -738,7 +740,22 @@ public:
 	}
 };
 
-
+class CmdSIZE: public Command{
+public:
+	CmdSIZE(User *usr): Command(usr){}
+	void process(){
+		char* buf = &user->buffer[user->rw_cur];
+		fs::path p(user->home);
+		if(*buf == '/'){ p = "/"; ++buf; }
+		check(buf);
+		p /= buf;
+		if(!fs::exists(p)){
+			reply("550 no such file or directory\r\n");
+		}else{
+			user->rw_cur = sprintf(user->buffer, "200 size: %lu, %s\r\n", fs::file_size(p), p.c_str());
+		}
+	}
+};
 class CommandFactory{
 private:
 	User* user;
@@ -780,9 +797,9 @@ public:
 //			case MODE:
 //				ptr_cmd = new CmdMODE(user);
 //				break;
-//			case SIZE:
-//				ptr_cmd = new CmdSIZE(user);
-//				break;
+			case SIZE:
+				ptr_cmd = new CmdSIZE(user);
+				break;
 			case RETR:
 				ptr_cmd = new CmdRETR(user);
 				break;
