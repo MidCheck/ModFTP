@@ -6,49 +6,12 @@
  ************************************************************************/
 #ifndef FTP_SHARDATA_H
 #define FTP_SHARDATA_H
-
+#include "FTP.h"
 #include "Database.h"
 #include "FTP_User.h"
 
 #include<mutex>
 namespace MidCHeck{
-/*访问控制命令*/
-#define _USER	"USER"
-#define _PASS	"PASS"
-#define _CWD	"CWD"
-#define _REIN	"REIN"
-#define _QUIT	"QUIT"
-/*传输参数命令*/
-#define _PORT	"PORT"
-#define _PASV	"PASV"
-#define _TYPE	"TYPE"
-#define _STRU	"STRU"
-#define _MODE	"MODE"
-/*FTP服务命令*/
-#define _SIZE	"SIZE"
-#define _RETR	"RETR"
-#define _STOR	"STOR"
-#define _ALLO	"ALLO"
-#define _REST	"REST"
-#define _RNFT	"RNFR"
-#define _RNTO	"RNTO"
-#define _ABOR	"ABOR"
-#define _DELE	"DELE"
-#define _RMD	"RMD"
-#define _MKD	"MKD"
-#define _PWD	"PWD"
-#define _LIST	"LIST"
-#define _NLST	"NLST"
-#define _SYST	"SYST"
-#define _HELP	"HELP"
-#define _NOOP	"NOOP"
-
-typedef enum { 
-	USER, PASS, CWD,  REIN, QUIT, PORT, PASV, TYPE, 
-	STRU, MODE, SIZE, RETR, STOR, ALLO, REST, RNFT,
-	RNTO, ABOR, DELE, RMD,  MKD,  PWD,  LIST, NLST, 
-	SYST, HELP, NOOP, CDUP, ERRCOMMAND
-} COMMAND;
 
 /*数据层*/
 class Shardata{

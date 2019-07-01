@@ -106,6 +106,14 @@ public:
 		sock_addr.sin_port = htons(port);
 		sock_addr.sin_addr.s_addr = inet_addr(ip);
 	}
+	#ifdef __linux__
+	int GetSock()
+	#elif __WIN32
+	SOCKET GetSock()
+	#endif
+	{
+		return sock;
+	}
 	~Socket(){
 		#ifdef _WIN32
 		closesocket(sock);

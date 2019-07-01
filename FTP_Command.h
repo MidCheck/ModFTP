@@ -27,23 +27,8 @@ namespace MidCHeck{
  * 回复一个常量字符串,x应为常量
  */
 #define reply(x) strcpy(this->user->buffer, x);\
-this->user->rw_cur = sizeof(x)
+this->user->rw_cur = sizeof(x) - 1
 
-/*
- * 为了使用默认参，使用inline
- * 功能: 把在buf里wd指定的子字符串的首位替换成'\0'，去掉结束标志
- */
-inline bool replace(char *buf, const char* wd = "\n"){
-	char *_ptr_ = strstr(buf, wd);
-	if(_ptr_ == nullptr){
-		return false;
-	}else if(*(_ptr_-1) == '\r'){
-		*(_ptr_-1) = '\0';
-	}else{
-		*_ptr_ = '\0';
-	}
-	return true;
-}
 /*
  * 检查x是否以'\n'或者'\r\n'结束
  * 必须在有user成员的类成员函数中使用
@@ -295,25 +280,6 @@ public:
 class CmdPORT: public Command{
 private:
 	char guest_ip[20];
-	void parse_ip(char *src, uint16_t& port){
-		char *ptr = src;
-		for(int i = 0; i < 3; ++i){
-			if((ptr = strstr(ptr, ",")) != nullptr){
-				*ptr++ = '.';
-			}
-		}
-		if((ptr = strstr(ptr, ",")) != nullptr){
-			*ptr++ = '\0';
-		}
-		char *next = strstr(ptr, ",");
-		if(next != nullptr) {
-			*next++ = '\0';
-			std::cout << " [PORT] ->parse_ip: ptr[" << ptr << "] next[" << next <<"]" << std::endl;
-			port = 256*atoi(ptr) + atoi(next);
-		}else{
-			port = atoi(ptr);
-		}
-	}
 public:
 	CmdPORT(User *usr): Command(usr){
 		socklen_t guest_len = sizeof(user->guest);
@@ -362,7 +328,10 @@ private:
 public:
 	CmdPASV(User* usr): Command(usr), serv_len(sizeof(user->serv)){ }
 	void process(){
-		if(user->mode == MODEPASV) return;
+		if(user->mode == MODEPASV){ 
+			reply("150 file status okay, will open data connection.\r\n");
+			return;
+		}
 		getsockname(user->sockfd, (struct sockaddr*)&user->serv, &serv_len);
 		user->port = ntohs(user->serv.sin_port) - 1;
 		user->serv.sin_port = htons(user->port);

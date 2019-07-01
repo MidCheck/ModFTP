@@ -12,18 +12,9 @@
 #include<netinet/in.h> 
 #include<condition_variable>
 #include<boost/filesystem.hpp>
-
+#include "FTP.h"
 namespace fs = boost::filesystem;
 namespace MidCHeck{
-/*用户状态*/
-typedef enum {
-	/*语法错误, 合法用户，非法用户*/
-	SYNTAXERR,	ILLEGAL,	LEGAL, 
-	/*未登录，已登录，已退出*/
-	NOTLOGGED,	LOGGED,		QUITED, 
-	/*正在传输中, PORT模式，PASV模式*/
-	TRANSING,	MODEPORT,	MODEPASV,
-} Usrstat;
 
 /*用户类，存放用户环境变量以及当前信息*/
 class User{
