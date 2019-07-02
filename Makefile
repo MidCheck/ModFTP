@@ -3,7 +3,7 @@
 GCC = g++
 BOOST = /usr/local
 INCLUDES += -I$(BOOST)/include -Iinclude
-LIBS +=  -L$(BOOST)/lib -lboost_filesystem -lpthread
+LIBS +=  -L$(BOOST)/lib -lboost_filesystem -lpthread -lcurses
 CFLAGS= $(INCLUDES) $(LIBS)
 #CFLAGS = -l pthread -l boost_filesystem
 objs = socket.o FTP_Shardata.o FTP_Server.o FTP.o
@@ -11,7 +11,7 @@ cli_objs = socket.o passwd.o FTP.o
 all: server client
 
 client: FTP_Client.cpp $(cli_objs) FTP_Client.h FTP_User.h
-	$(GCC) -o $@ $< -Wl,$(cli_objs) -lcurses
+	$(GCC) -o $@ $< -Wl,$(cli_objs) $(CFLAGS)
 
 passwd: passwd.cpp
 	$(GCC) -c $<
