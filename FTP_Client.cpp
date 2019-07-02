@@ -19,9 +19,9 @@ FTP_Client::FTP_Client(const char* ip, int port): Socket(ip, port){
 		}
 	}
 	InitMap(cmd_map);
-	cmd_help[USER] = "开始新用户登录过程";
-	cmd_help[PASS] = "发送密码";
-	cmd_help[CWD] = "切换当前工作目录";
+	cmd_help[USER] = "开始新用户登录过程\n用法: user 用户名";
+	cmd_help[PASS] = "发送密码\n用法: pass 密码";
+	cmd_help[CWD] = "切换当前工作目录\n用法: cwd 目录";
 	cmd_help[CDUP] = "返回上层目录";
 	cmd_help[QUIT] = "退出当前会话";
 	cmd_help[REIN] = "重新开始一个用户";
@@ -31,8 +31,8 @@ FTP_Client::FTP_Client(const char* ip, int port): Socket(ip, port){
 	cmd_help[STRU] = "设置文件传输结构";
 	cmd_help[MODE] = "设置传输模式";
 	cmd_help[SIZE] = "返回文件大小";
-	cmd_help[RETR] = "获取文件";
-	cmd_help[STOR] = "存储文件";
+	cmd_help[RETR] = "下载文件, 存储到本地不带路径\n用法: retr 远程文件";
+	cmd_help[STOR] = "上传文件, 存储到服务器不带路径\n用法: stor 本地文件";
 	cmd_help[ALLO] = "保留足够空间";
 	cmd_help[REST] = "重新开始";
 	cmd_help[RNFT] = "重命名开始";
