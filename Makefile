@@ -18,7 +18,7 @@ ftp: ftp.cpp $(cli_objs)
 ftpd: ftpd.cpp $(ser_objs)
 	$(GCC) -o $@  $< -Wl,$(ser_objs) $(CFLAGS)
 
-FTP_Client: FTP_Client.cpp  FTP_Client.h FTP_User.h
+FTP_Client: FTP_Client.cpp FTP_Client.h FTP_User.h
 	$(GCC) -c $<
 
 FTP_Server.o: FTP_Server.cpp FTP_Server.h FTP_Command.h server.h
