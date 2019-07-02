@@ -461,8 +461,10 @@ public:
 		}else{
 			// 如果是当前目录
 			for(int i = 0; it != list.end(); ++it, ++i){
-				if((i+1) % 5 == 0) list[0] += '\n';
-				list[0] += '\t' + *it;
+				if((i+1) % 5 == 0)
+					list[0] += '\n' + *it;
+				else
+					list[0] += '\t' + *it;
 			}
 		}
 		list[0] += "\r\n";
@@ -518,7 +520,7 @@ public:
 	CmdRETR(User *usr): Command(usr){}
 	void process(){
 		char* buf = &user->buffer[user->rw_cur];
-		fs::path p(user->home);
+		fs::path p(user->path);
 		if(*buf == '/'){ p = "/"; ++buf; }
 		check(buf);
 		p /= buf;
@@ -534,8 +536,8 @@ public:
 		try{
 			filefd = open(p.c_str(), O_RDONLY);
 			if(filefd <= 0) mcthrow("can't open file!");
-			reply("150 file status okay, will open data connection\r\n");
-			user->flush();
+			//reply("150 file status okay, will open data connection\r\n");
+			//user->flush();
 		}catch(MCErr err){
 			std::cerr << err.what() << std::endl;
 			reply("450 can't open file!");
@@ -579,6 +581,8 @@ public:
 			try{
 				if(sendfile(conn, filefd, NULL, fs::file_size(p)) == -1)
 					mcthrow("sendfile error");
+				reply("250 request file action okay, completed.\r\n");
+				user->flush();
 				close(filefd);
 				close(conn);
 			}catch(MCErr err){
@@ -588,7 +592,7 @@ public:
 				return;
 			}
 		}
-		reply("250 request file action okay, completed.\r\n");
+		reply("226 closed data connection\r\n");
 	}
 };
 class CmdSTOR:public Command{
@@ -596,33 +600,33 @@ public:
 	CmdSTOR(User *usr): Command(usr){}
 	void process(){
 		char* buf = &user->buffer[user->rw_cur];
-		fs::path p(user->home);
+		fs::path p(user->path);
 		if(*buf == '/'){ p = "/"; ++buf; }
 		check(buf);
 		p /= buf;
-		bool file_exist = false, pip_flag = true;
-		if(fs::exists(p)){
-			file_exist = true;
-		}
+		bool  pip_flag = true;
 
 		int filefd = 0;
 		// 打开要存储的文件，接收传输内容并将其写入，设置相应权限
-		int flag = 0;
-		if(!file_exist) flag |= O_CREAT;
-		flag |= O_WRONLY;
 		// 根据相应用户，设置相应权限
 		// 得到用户权限
 		// get_user_mask() 0744
-		flag |= (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+		//flag |= (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		// 创建一个管道，用于splice函数
 		int pipefd[2];
 		int ret = pipe(pipefd);
 		int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
 		try{
-			filefd = open(p.c_str(), flag);
+			if(!fs::exists(p)){
+				filefd = open(p.c_str(),
+					O_CREAT|O_WRONLY,
+					S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+			}else{
+				filefd = open(p.c_str(), O_WRONLY | O_TRUNC); 
+			}
 			if(filefd <= 0) mcthrow("can't open file!");
-			reply("150 file status okay, will open data connection\r\n");
-			user->flush();
+			//reply("150 file status okay, will open data connection\r\n");
+			//user->flush();
 		}catch(MCErr err){
 			std::cerr << err.what() << std::endl;
 			reply("450 can't open file!");
@@ -676,6 +680,8 @@ public:
 					else if(ret == 0) break;
 					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 				}while(ret && ret == pipe_size); // 如果小于管道大小，说明已传输完毕
+				reply("250 request file action okay, completed.\r\n");
+				user->flush();
 				close(filefd);
 				close(conn);
 			}catch(MCErr err){
@@ -688,7 +694,7 @@ public:
 			reply("226 need to specify mode.\r\n");
 			return;
 		}
-		reply("250 request file action okay, completed.\r\n");
+		reply("226 closed data connection\r\n");
 	}
 }; 
 

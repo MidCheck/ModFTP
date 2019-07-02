@@ -48,6 +48,9 @@ FTP_Client::FTP_Client(const char* ip, int port): Socket(ip, port){
 	cmd_help[HELP] = "查看帮助";
 	cmd_help[NOOP] = "空操作";
 }
+FTP_Client::~FTP_Client(){
+	close(sockfd);
+}
 
 COMMAND FTP_Client::parse(){
 	char *ptr = buffer;
@@ -137,6 +140,8 @@ void FTP_Client::CmdList(){
 	}else{
 		std::cout << temp;
 	}
+	mode = MODEPASV;
+
 	strcat(buffer, "\r\n");
 	rw_cur += 2;
 	send(sockfd, buffer, rw_cur, 0);
@@ -144,11 +149,15 @@ void FTP_Client::CmdList(){
 	if((ret = recv(sockfd, temp, 128, 0)) == -1){
 		mcthrow("[-] 数据接受失败");
 	}
-	std::cout << temp;
 	char* ptr = strstr(temp, "(");
-	if(ptr == nullptr) mcthrow("[-] 返回数据格式错误");
-	parse_ip(++ptr, port);
-	
+	try{
+		if(ptr == nullptr) mcthrow("[-] 返回数据格式错误");
+		parse_ip(++ptr, port);
+	}catch(MCErr err){
+		std::cerr << err.what() << std::endl;
+		std::cerr << temp << std::endl;
+		return;
+	}
 	dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	serv.sin_family = AF_INET;
 	serv.sin_port = htons(port);
@@ -168,12 +177,12 @@ void FTP_Client::CmdList(){
 		std::cout << temp;
 		memset(temp, '\0', 127);
 	}
-
-	if(ptr_recv){
-		while(char* ptr = replace(ptr_recv)){
+	// 解决tcp粘包问题
+	if(char* ptr = replace(ptr_recv)){
+		do{
 			std::cout << ptr_recv << std::endl;
 			ptr_recv = ptr;
-		}
+		}while(ptr = replace(ptr_recv));
 	}else{
 		memset(buffer, '\0', 128);
 		recv(sockfd, buffer, 128, 0);
@@ -186,10 +195,198 @@ void FTP_Client::CmdList(){
 	close(dsockfd);
 }
 void FTP_Client::CmdRetr(){
-
+	int ret = 0;
+	char temp[128] = "PASV\r\n";
+	uint16_t port = 0;
+	// 发送pasv命令
+	if(mode != MODEPASV){
+		send(sockfd, temp, 6, 0);
+		memset(temp, '\0', 128);
+		if((ret = recv(sockfd, temp, 128, 0)) == -1){
+			mcthrow("[-] 数据接受失败");
+		}else{
+			std::cout << temp;
+		}
+		mode = MODEPASV;
+	}
+	// 新建本地文件路径
+	char *ptr = strstr(buffer, " ");
+	++ptr;
+	fs::path p(ptr);
+	// 发送retr命令
+	strcat(buffer, "\r\n");
+	rw_cur += 2;
+	send(sockfd, buffer, rw_cur, 0);
+	memset(temp, '\0', 128);
+	// 接收ip,port
+	if((ret = recv(sockfd, temp, 128, 0)) == -1){
+		mcthrow("[-] 数据接受失败");
+	}
+	try{
+		ptr = strstr(temp, "(");
+		if(ptr == nullptr) mcthrow("[-] 返回数据格式错误");
+		parse_ip(++ptr, port);
+	}catch(MCErr err){
+		std::cerr << err.what() << std::endl;
+		std::cerr << temp;
+		return;
+	}
+	// 连接
+	serv.sin_family = AF_INET;
+	serv.sin_port = htons(port);
+	serv.sin_addr.s_addr = inet_addr(ptr);
+	dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if(connect(dsockfd, (struct sockaddr*)&serv, sizeof(serv)) == -1)
+		mcthrow("[-] 连接失败!");
+	memset(buffer, '\0', 128);
+	recv(sockfd, buffer, 128, 0);
+	char* ptr_recv = replace(buffer);
+	if(ptr_recv)
+		std::cout << buffer << std::endl;
+	// 接收文件
+	int pipefd[2];
+	ret = pipe(pipefd);
+	int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
+	int filefd;
+	if(!fs::exists(p.filename())){
+		filefd = open(p.filename().c_str(), 
+			O_CREAT|O_WRONLY,
+			S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+	}else{
+		filefd = open(p.filename().c_str(),
+			O_WRONLY| O_TRUNC);
+	}
+	do{
+		ret = splice(dsockfd, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+		if(ret == -1) mcthrow("splice写入管道出错!");
+		else if(ret == 0) break;
+		ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+		if(ret == -1) mcthrow("splice从管道读入出错!");
+	}while(ret && ret == pipe_size);
+	// 解决tcp粘包问题
+	if(char* ptr = replace(ptr_recv)){
+		do{
+			std::cout << ptr_recv << std::endl;
+			ptr_recv = ptr;
+		}while(ptr = replace(ptr_recv));
+	}else{
+		memset(buffer, '\0', 128);
+		recv(sockfd, buffer, 128, 0); // 又发生了粘包
+		ptr_recv = replace(buffer);
+		if(ptr_recv) std::cout << buffer << std::endl;
+		if(char* ptr = replace(ptr_recv)){
+			do{
+				std::cout << ptr_recv << std::endl;
+				ptr_recv = ptr;
+			}while(ptr = replace(ptr_recv));
+		}else{
+			memset(buffer, '\0', 128);
+			recv(sockfd, buffer, 128, 0);
+			std::cout << buffer << std::endl;
+		}
+	}
+	close(filefd);
+	close(dsockfd);
 }
 void FTP_Client::CmdStor(){
-
+	// 找到对应本地文件
+	char *ptr = strstr(buffer, " ");
+	if(ptr == nullptr){
+		std::cerr << "[-] 参数格式错误" << std::endl;
+		return;
+	}
+	fs::path p(++ptr);
+	if(!fs::exists(p)){
+		std::cerr << "[-] 本地文件不存在" << std::endl;
+		return;
+	}
+	if(fs::is_directory(p)){
+		std::cerr << "[-] 当前版本不支持目录传送" << std::endl;
+		return;
+	}
+	int filefd = open(p.c_str(), O_RDONLY);
+	if(filefd <= 0){
+		std::cerr << "[-] 不能打开文件" << std::endl;
+		return;
+	}
+	// 查看是否处于PASV模式,否则发送PASV命令
+	char temp[128] = "PASV\r\n";
+	uint16_t port = 0;
+	if(mode != MODEPASV){
+		send(sockfd, temp, 6, 0);
+		memset(temp, '\0', 128);
+		if(recv(sockfd, temp, 128, 0) == -1){
+			mcthrow("[-] 数据接受失败");
+		}else{
+			std::cout << temp;
+		}
+		mode = MODEPASV;
+	}
+	// 发送STOR命令
+	strcat(buffer, "\r\n");
+	rw_cur += 2;
+	send(sockfd, buffer, rw_cur, 0);
+	memset(temp, '\0', 128);
+	// 接收ip,port
+	if(recv(sockfd, temp, 128, 0) == -1){
+		mcthrow("[-] 数据接受失败");
+	}
+	try{
+		ptr = strstr(temp, "(");
+		if(ptr == nullptr) mcthrow("[-] 返回数据格式错误");
+		parse_ip(++ptr, port);
+	}catch(MCErr err){
+		std::cerr << err.what() << std::endl;
+		std::cerr << temp;
+		return;
+	}
+	// 连接
+	serv.sin_family = AF_INET;
+	serv.sin_port = htons(port);
+	serv.sin_addr.s_addr = inet_addr(ptr);
+	dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if(connect(dsockfd, (struct sockaddr*)&serv, sizeof(serv)) == -1)
+		mcthrow("[-] 连接失败!");
+	memset(buffer, '\0', 128);
+	// 接受125, 250 226等回复
+	recv(sockfd, buffer, 128, 0);
+	char* ptr_recv = replace(buffer);
+	if(ptr_recv)
+		std::cout << buffer << std::endl;
+	// 发送文件
+	try{
+		if(sendfile(dsockfd, filefd, NULL, fs::file_size(p)) == -1)
+			mcthrow("sendfile error");
+	}catch(MCErr err){
+		std::cerr << err.what() << std::endl;
+		close(filefd);
+		close(dsockfd);
+		return;
+	}
+	// 解决tcp粘包问题
+	if(char* ptr = replace(ptr_recv)){ // 发送端粘包
+		do{
+			std::cout << ptr_recv << std::endl;
+			ptr_recv = ptr;
+		}while(ptr = replace(ptr_recv));
+	}else{
+		memset(buffer, '\0', 128);
+		recv(sockfd, buffer, 128, 0); // 接受端粘包
+		ptr_recv = replace(buffer);
+		if(ptr_recv) std::cout << buffer << std::endl;
+		if(char* ptr = replace(ptr_recv)){
+			do{
+				std::cout << ptr_recv << std::endl;
+				ptr_recv = ptr;
+			}while(ptr = replace(ptr_recv));
+		}else{
+			memset(buffer, '\0', 128);
+			recv(sockfd, buffer, 128, 0);
+			std::cout << buffer << std::endl;
+		}
+	}
+	close(filefd);
+	close(dsockfd);
 }
 
 void FTP_Client::start(){
@@ -232,7 +429,6 @@ int main(int argc, char** argv){
 			<< std::endl;
 		return 1;
 	}
-	std::cout << argv[0] << " " << argv[1] << " " << argv[2] << std::endl;
 	MidCHeck::FTP_Client client(argv[1], atoi(argv[2]));
 	client.start();
 	return 0;

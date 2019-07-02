@@ -7,6 +7,7 @@
 #ifndef MIDCHECK_FTP_CLIENT_H
 #define MIDCHECK_FTP_CLIENT_H
 #include <unordered_map>
+#include <sys/sendfile.h>
 #include "socket.h"
 #include "FTP_User.h"
 #include "passwd.h"
@@ -18,6 +19,7 @@ private:
 	std::unordered_map<std::string, COMMAND> cmd_map;
 public:
 	FTP_Client(const char* ip, int port = 21);
+	~FTP_Client();
 	COMMAND parse();
 	void package();
 	void start();
