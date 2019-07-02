@@ -31,6 +31,15 @@ public:
 		}
 		return false;
 	}
+	bool DelUser(int fd){
+		std::unordered_map<int, User*>::iterator it = users.find(fd);
+		if(it != users.end()){
+			delete it->second;
+			users.erase(it);
+			return true;
+		}
+		return false;
+	}
 	const std::string& GetRootPath(){ return dir_root; }
 };
 } // end namespace MidCHeck

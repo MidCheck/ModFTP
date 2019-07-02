@@ -11,6 +11,7 @@
 #include "socket.h"
 #include "FTP_User.h"
 #include "passwd.h"
+
 namespace MidCHeck{
 class FTP_Client: public User, public Socket{
 private:
@@ -28,6 +29,7 @@ public:
 	void CmdList();
 	void CmdRetr();
 	void CmdStor();
+	void CmdQuit();
 };
 } // end namespace MidCHeck
 #endif

@@ -34,10 +34,18 @@ this->user->rw_cur = sizeof(x) - 1
  * 必须在有user成员的类成员函数中使用
  */
 #define check(x) if(!replace(x)){\
-	reply("501 Syntax error in parameters or arguments");\
+	reply("501 Syntax error in parameters or arguments\r\n");\
 	this->user->status = SYNTAXERR;\
 	return;\
 }
+/*
+ * 检测权限
+ */
+#define IsLegal(x) if(x != LEGAL){\
+	reply("332 illegal operation, need account login\r\n");\
+	return;\
+}
+
 /*控制层*/
 class Command{
 protected:
@@ -66,19 +74,19 @@ public:
 		const MidCHeck::Tabusr* db_usr = sd->db->query(buffer);
 
 		if(db_usr != nullptr){
-			this->user->name = db_usr->name;
-			this->user->passwd = db_usr->passwd;
-			this->user->path = this->user->home = db_usr->home_path;
+			user->name = db_usr->name;
+			user->passwd = db_usr->passwd;
+			user->path = user->home = db_usr->home_path;
 			
-			this->user->status = NOTLOGGED;
-			this->user->auth = LEGAL;
-			sd->AddUser(this->user->sockfd, this->user);
+			user->status = NOTLOGGED;
+			user->auth = LEGAL;
+			sd->AddUser(user->sockfd, user);
 			
 			reply("331 Need password!\r\n");
 			return;
 		}
 
-		this->user->auth = ILLEGAL;
+		user->auth = ILLEGAL;
 		reply("332 has no this acount!\r\n");
 	}
 };
@@ -86,17 +94,16 @@ class CmdPASS: public Command{
 public:
 	CmdPASS(User *usr):Command(usr){}
 	void process(){
-		char *buffer = &this->user->buffer[user->rw_cur];
-		if(this->user->auth == LEGAL){
+		char *buffer = &user->buffer[user->rw_cur];
+		if(user->auth == LEGAL){
 			check(buffer);
-			if(this->user->passwd == buffer){
-				this->user->status = LOGGED;
+			if(user->passwd == buffer){
+				user->status = LOGGED;
 				reply("230 User logged in, proceed\r\n");
-				//std::cout << " [P] " << fs::current_path().c_str() << std::endl;
 				fs::current_path(fs::path(user->path));
-				//std::cout << " [P2]" << fs::current_path().c_str() << std::endl;
 				return;
 			}
+			user->auth = ILLEGAL;
 			reply("530 login failed,wrong passwd!\r\n");
 			return;
 		}
@@ -108,6 +115,7 @@ class CmdSYST: public Command{
 public:
 	CmdSYST(User* usr):Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 #ifdef WIN32
 		reply("215 DOS/360 Window NT\r\n");
 #elif __linux__
@@ -120,6 +128,7 @@ class CmdPWD: public Command{
 public:
 	CmdPWD(User* usr):Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		user->rw_cur = sprintf(user->buffer, "%d-\"%s\" directory already exists;\n%d taking no action.\r\n", 521, this->user->path.c_str(), 521);
 		return;
 	}
@@ -129,6 +138,9 @@ class CmdQUIT: public Command{
 public:
 	CmdQUIT(User* usr):Command(usr) {}
 	void process(){
+		// quit不用管用户是否合法
+		Shardata *sd = Shardata::GetEntity();
+
 		std::unique_lock<std::mutex> lk(user->mut);
 		if(user->status == TRANSING){
 			// 如果用户在传输数据,必须等待传输完成
@@ -136,11 +148,11 @@ public:
 			user->flush();
 			user->wait_data.wait(lk);
 		}
+		reply("221 closing connection\r\n");
+		user->flush();
 		close(user->dsockfd);
 		close(user->sockfd);
-		user->status = QUITED;
-		reply("221 closing connection\r\n");
-		return;
+		sd->DelUser(user->sockfd);
 	}
 };
 
@@ -159,6 +171,7 @@ protected:
 public:
 	CmdCWD(User* usr):Command(usr) {}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
 		if(buf[0] == '/') {
@@ -197,6 +210,7 @@ class CmdMKD: public Command{
 public:
 	CmdMKD(User* usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
 		if(buf[0] == '/'){ 
@@ -230,6 +244,7 @@ class CmdRMD: public Command{
 public:
 	CmdRMD(User *usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
 		if(buf[0] == '/') {
@@ -255,6 +270,7 @@ class CmdCDUP: public Command{
 public:
 	CmdCDUP(User* usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		fs::path p(user->path);
 		user->rw_cur = sprintf(user->buffer, "200 %s\r\n", p.parent_path().c_str());
 	}
@@ -263,6 +279,7 @@ class CmdNOOP: public Command{
 public:
 	CmdNOOP(User *usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		reply("200 OK");
 	}
 };
@@ -282,6 +299,7 @@ private:
 	char guest_ip[20];
 public:
 	CmdPORT(User *usr): Command(usr){
+		IsLegal(user->auth);
 		socklen_t guest_len = sizeof(user->guest);
 		getpeername(user->sockfd, (struct sockaddr*)&user->guest, &guest_len);
 		inet_ntop(AF_INET, &user->guest.sin_addr, guest_ip, sizeof(guest_ip));
@@ -296,12 +314,12 @@ public:
 		}
 	}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		check(buf);
 		parse_ip(buf, user->port); // buf里存放ip
 		user->guest.sin_port = htons(user->port);
 		
-		std::cout << " [PORT] port:" << user->port << std::endl;
 		if(strcmp(buf, guest_ip)){ // 如果ip不相等
 			user->guest.sin_addr.s_addr = inet_addr(buf);
 		}
@@ -328,6 +346,7 @@ private:
 public:
 	CmdPASV(User* usr): Command(usr), serv_len(sizeof(user->serv)){ }
 	void process(){
+		IsLegal(user->auth);
 		if(user->mode == MODEPASV){ 
 			reply("150 file status okay, will open data connection.\r\n");
 			return;
@@ -339,7 +358,6 @@ public:
 		if((user->dsockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 			mcthrow("PASV socket创建出错!");
 		try{
-			std::cout << " [PASV] Port:" << user->port << std::endl;
 			if(bind(user->dsockfd, (struct sockaddr*)&user->serv, sizeof(struct sockaddr_in)) == -1)
 				mcthrow("PASV 绑定数据端口出错!");
 		}catch(MCErr e){
@@ -440,6 +458,7 @@ private:
 public:
 	CmdLIST(User* usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
 		bool flag = false;
@@ -519,6 +538,7 @@ class CmdRETR: public Command{
 public:
 	CmdRETR(User *usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
 		if(*buf == '/'){ p = "/"; ++buf; }
@@ -599,6 +619,7 @@ class CmdSTOR:public Command{
 public:
 	CmdSTOR(User *usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
 		if(*buf == '/'){ p = "/"; ++buf; }
@@ -702,6 +723,7 @@ class CmdDELE: public Command{
 public:
 	CmdDELE(User *usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->home);
 		if(*buf == '/'){ p = "/"; ++buf; }
@@ -719,6 +741,7 @@ class CmdSIZE: public Command{
 public:
 	CmdSIZE(User *usr): Command(usr){}
 	void process(){
+		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->home);
 		if(*buf == '/'){ p = "/"; ++buf; }

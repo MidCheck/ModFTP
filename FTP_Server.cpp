@@ -23,7 +23,6 @@ COMMAND Worker::parse(char* buf, int& cur){
 void FTP_Server::start(){
 	while(1){
 		int ret = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
-		std::cout << "epoll_wait: " << ret << std::endl;
 		if(ret < 0) mcthrow("epoll failure");
 		for(int i = 0; i < ret; ++i){
 			int sockfd = events[i].data.fd;

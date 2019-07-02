@@ -17,7 +17,6 @@
 
 #ifdef __linux__
 #include<sys/epoll.h>
-//#include<pthread.h>
 #define MAX_EVENT_NUMBER 1024
 #endif
 
@@ -46,7 +45,6 @@ private:
 	int _epollfd;
 	int _sockfd;
 	MidCHeck::User *&_user;  // 指向当前sockfd的缓冲区
-	//std::vector<char> buf(128); // 每个线程都有缓冲区
 	COMMAND parse(char*, int&);
 public:
 	Worker(int efd, int sfd):_epollfd(efd), _sockfd(sfd),
@@ -54,26 +52,24 @@ public:
 	{
 		// 保证每一个命令都有数据空间
 		// 注意到在quit退出或套接字关闭时释放空间
-		if(_user == nullptr) _user = new User;
-		_user->sockfd = _sockfd;
-		std::cout << "[s] workin, sockfd: " << _sockfd << std::endl;
+		if(_user == nullptr) {
+			_user = new User;
+			_user->sockfd = _sockfd;
+		}
 	}
-	~Worker(){
+	/*~Worker(){
 		std::cout << "[s] work析构 " << std::endl;
-	}
+	}*/
 	void operator()(){
 		char* buf = _user->buffer;
-		bool flag = false;
 		// 如果命令后的参数太长，则可能出bug
 		while(1){
 			// 非第一次接受数据
 			// 可能不需要清空内存，因为解析时以结束符为标志
-			if(flag) memset(buf, '\0', _user->rw_cur);
+			memset(buf, '\0', _user->rw_cur);
 			int ret = recv(_sockfd, buf, 128, 0);
 
 			if(ret == 0){
-				//delete _user;
-				//Shardata::GetEntity()->users.erase(sockfd);
 				close(_sockfd);
 				break;
 			}else if(ret < 0){
@@ -83,18 +79,16 @@ public:
 					break;
 				}
 			}else{
-				flag = true;
 				// 解析命令
 				COMMAND recv_cmd = parse(buf, _user->rw_cur);
-				
 				Command* cmd = CommandFactory(_user).CreateCmd(recv_cmd);
 				cmd->process();
 				//　阻塞与非阻塞可能有bug
-				send(_sockfd, buf, _user->rw_cur, 0);
+				if(recv_cmd != QUIT)
+					send(_sockfd, buf, _user->rw_cur, 0);
 			}
 		}
 	}
-	
 };
 class FTP_Server: public Server{
 private:

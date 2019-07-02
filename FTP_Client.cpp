@@ -61,8 +61,11 @@ COMMAND FTP_Client::parse(){
 	bool flag = false;
 	for(char *i = ptr; i != &buffer[rw_cur]; ++i){
 		if(*i == ' ') { 
-			flag = true; 
-			if(!blank_space) blank_space = j; // 记录首个空格位置
+			if(!blank_space){
+				flag = true; 
+				blank_space = j; // 记录首个空格位置
+			}
+			if(*(i+1) == ' ') continue; // 消除中间位置空格
 		}
 		if(!flag)
 			buffer[j++] = toupper(*i);
@@ -389,6 +392,16 @@ void FTP_Client::CmdStor(){
 	close(dsockfd);
 }
 
+void FTP_Client::CmdQuit(){
+	buffer[rw_cur++] = '\r';
+	buffer[rw_cur++] = '\n';
+	send(sockfd, buffer, rw_cur, 0);
+	if((rw_cur = recv(sockfd, buffer, 128, 0)) != -1){
+		std::cout << buffer;
+	}
+	std::cout << "Bye!" << std::endl;
+}
+
 void FTP_Client::start(){
 	const char* bash = "ftp> ";
 	while(true){
@@ -406,7 +419,7 @@ void FTP_Client::start(){
 			case LIST: CmdList(); break;
 			case RETR: CmdRetr(); break;
 			case STOR: CmdStor(); break;
-			case QUIT: return;
+			case QUIT: CmdQuit(); return;
 			case USER: CmdUser();
 			default:
 				buffer[rw_cur++] = '\r';
@@ -421,15 +434,3 @@ void FTP_Client::start(){
 }
 
 } // end namespace MidCHeck
-
-int main(int argc, char** argv){
-	if(argc < 2){
-		std::cout << "参数太少" << std::endl
-			<< "Usage: ftp [ip] [port]"
-			<< std::endl;
-		return 1;
-	}
-	MidCHeck::FTP_Client client(argv[1], atoi(argv[2]));
-	client.start();
-	return 0;
-}

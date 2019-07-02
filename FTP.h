@@ -20,7 +20,7 @@ typedef enum {
 
 /*用户状态*/
 typedef enum {
-	/*语法错误, 合法用户，非法用户*/
+	/*语法错误, 非法用户，合法用户*/
 	SYNTAXERR,	ILLEGAL,	LEGAL, 
 	/*未登录，已登录，已退出*/
 	NOTLOGGED,	LOGGED,		QUITED, 
