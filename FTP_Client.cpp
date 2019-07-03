@@ -188,12 +188,19 @@ void FTP_Client::CmdList(){
 		}while(ptr = replace(ptr_recv));
 	}else{
 		memset(buffer, '\0', 128);
-		recv(sockfd, buffer, 128, 0);
-		std::cout << buffer << std::endl;
-
-		memset(buffer, '\0', 128);
-		recv(sockfd, buffer, 128, 0);
-		std::cout << buffer << std::endl;
+		recv(sockfd, buffer, 128, 0); // 又发生了粘包
+		ptr_recv = replace(buffer);
+		if(ptr_recv) std::cout << buffer << std::endl;
+		if(char* ptr = replace(ptr_recv)){
+			do{
+				std::cout << ptr_recv << std::endl;
+				ptr_recv = ptr;
+			}while(ptr = replace(ptr_recv));
+		}else{
+			memset(buffer, '\0', 128);
+			recv(sockfd, buffer, 128, 0);
+			std::cout << buffer << std::endl;
+		}
 	}
 	close(dsockfd);
 }
