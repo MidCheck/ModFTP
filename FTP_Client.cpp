@@ -152,6 +152,7 @@ void FTP_Client::CmdList(){
 	if((ret = recv(sockfd, temp, 128, 0)) == -1){
 		mcthrow("[-] 数据接受失败");
 	}
+	std::cout << "[temp]:<" << temp << std::endl;
 	char* ptr = strstr(temp, "(");
 	try{
 		if(ptr == nullptr) mcthrow("[-] 返回数据格式错误");
