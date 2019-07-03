@@ -506,8 +506,9 @@ public:
 			// 进入PASV模式
 			// 给客户端发送IP以及端口
 			strcpy(user->buffer, "227 entering Passive Mode (");
-			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
-			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			//user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
+			//inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			strcat(user->buffer, _IP);
 			user->rw_cur = strlen(user->buffer);
 			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
@@ -583,8 +584,9 @@ public:
 			// 进入PASV模式
 			// 给客户端发送IP以及端口
 			strcpy(user->buffer, "227 entering Passive Mode (");
-			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
-			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			//user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
+			//inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			strcat(user->buffer, _IP);
 			user->rw_cur = strlen(user->buffer);
 			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
@@ -678,8 +680,9 @@ public:
 			// 进入PASV模式
 			// 给客户端发送IP以及端口
 			strcpy(user->buffer, "227 entering Passive Mode (");
-			user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
-			inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			//user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
+			//inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
+			strcat(user->buffer, _IP);
 			user->rw_cur = strlen(user->buffer);
 			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
