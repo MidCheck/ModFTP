@@ -124,6 +124,10 @@ void FTP_Client::CmdUser(){
 	if((rw_cur = recv(sockfd, buffer, 128, 0)) != -1){
 		std::cout << buffer;
 	}
+	if(strncmp(buffer, "331", 3)){
+		Debug("非法用户,重新输入");
+		return;
+	}
 	strcpy(buffer, "PASS ");
 	rw_cur = sizeof("PASS ");
 	std::cout << "password: " << std::flush;
@@ -148,16 +152,18 @@ void FTP_Client::CmdList(){
 	strcat(buffer, "\r\n");
 	rw_cur += 2;
 	send(sockfd, buffer, rw_cur, 0);
+	Debug("rw_cur:%d, buffer:%s", rw_cur, buffer);
 	memset(temp, '\0', 128);
 	if((ret = recv(sockfd, temp, 128, 0)) == -1){
 		mcthrow("[-] 数据接受失败");
 	}
-	std::cout << "[temp]:<" << temp << std::endl;
+	Debug("ret:%d,recv_temp:%s", ret, temp);
 	char* ptr = strstr(temp, "(");
 	try{
 		if(ptr == nullptr) mcthrow("[-] 返回数据格式错误");
 		parse_ip(++ptr, port);
 	}catch(MCErr err){
+		if(strstr(temp, "332")) return; // 如果返回的是非法命令
 		std::cerr << err.what() << std::endl;
 		std::cerr << temp << std::endl;
 		return;
@@ -166,7 +172,7 @@ void FTP_Client::CmdList(){
 	serv.sin_family = AF_INET;
 	serv.sin_port = htons(port);
 	serv.sin_addr.s_addr = inet_addr(ptr);
-
+	Debug("port: %d, ptr_addr:%s", port, ptr);
 	if(connect(dsockfd, (struct sockaddr*)&serv, sizeof(serv)) == -1)
 		mcthrow("[-] 连接失败!");
 
