@@ -5,6 +5,7 @@
     > Created Time: 2019年06月29日 星期六 14时01分08秒
  ************************************************************************/
 #include "FTP_Client.h"
+#include <sys/time.h>
 
 namespace MidCHeck{
 FTP_Client::FTP_Client(const char* ip, int port): Socket(ip, port){
@@ -158,12 +159,15 @@ void FTP_Client::CmdList(){
 		mcthrow("[-] 数据接受失败");
 	}
 	Debug("ret:%d,recv_temp:%s", ret, temp);
+	if(strncmp(temp, "227", 3)) {
+		std::cout << temp << std::endl;
+		return; // 如果返回的是非法命令
+	}
 	char* ptr = strstr(temp, "(");
 	try{
 		if(ptr == nullptr) mcthrow("[-] 返回数据格式错误");
 		parse_ip(++ptr, port);
 	}catch(MCErr err){
-		if(strstr(temp, "332")) return; // 如果返回的是非法命令
 		std::cerr << err.what() << std::endl;
 		std::cerr << temp << std::endl;
 		return;
@@ -432,8 +436,30 @@ void FTP_Client::start(){
 		switch(parse()){
 			case HELP: CmdHelp(); break;
 			case LIST: CmdList(); break;
-			case RETR: CmdRetr(); break;
-			case STOR: CmdStor(); break;
+			case RETR:
+				#if DEBUG
+					timeval t1, t2;
+					gettimeofday(&t1, NULL);
+				#endif
+					CmdRetr(); 
+				#if DEBUG
+					gettimeofday(&t2, NULL);
+						std::cout << "本次下载花费时间为:" 
+							<< (t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec-t1.tv_usec;
+				#endif
+					   break;
+			case STOR: 
+				#if DEBUG
+					timeval t1, t2;
+					gettimeofday(&t1, NULL);
+				#endif
+					CmdStor(); 
+				#if DEBUG
+					gettimeofday(&t2, NULL);
+						std::cout << "本次上传花费时间为:" 
+							<< (t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec-t1.tv_usec;
+				#endif
+					   break;
 			case QUIT: CmdQuit(); return;
 			case USER: CmdUser();
 			default:

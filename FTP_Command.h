@@ -478,6 +478,10 @@ public:
 		}
 		std::vector<std::string> list;
 		parse_list(p, list, flag);
+		if(list.size() < 1){
+			reply("550 no such file\r\n");
+			return;
+		}
 		std::vector<std::string>::iterator it = ++list.begin();
 		Debug("list size:%d", list.size());
 		if(!flag){
