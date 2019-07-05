@@ -263,7 +263,7 @@ void FTP_Client::CmdRetr(){
 	// 接收文件
 	int pipefd[2];
 	ret = pipe(pipefd);
-	//int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
+	int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
 	int filefd;
 	if(!fs::exists(p.filename())){
 		filefd = open(p.filename().c_str(), 
@@ -274,12 +274,13 @@ void FTP_Client::CmdRetr(){
 			O_WRONLY| O_TRUNC);
 	}
 	do{
-		ret = splice(dsockfd, NULL, pipefd[1], NULL, 32768, SPLICE_F_MORE | SPLICE_F_MOVE);
+		ret = splice(dsockfd, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+		Debug("接受文件数据: %d", ret);
 		if(ret == -1) mcthrow("splice写入管道出错!");
 		else if(ret == 0) break;
-		ret = splice(pipefd[0], NULL, filefd, NULL, 32768, SPLICE_F_MORE | SPLICE_F_MOVE);
+		ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 		if(ret == -1) mcthrow("splice从管道读入出错!");
-	}while(ret && ret == 32768);
+	}while(ret && ret != -1);
 	// 解决tcp粘包问题
 	if(char* ptr = replace(ptr_recv)){
 		do{

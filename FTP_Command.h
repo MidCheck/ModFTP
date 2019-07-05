@@ -647,7 +647,7 @@ public:
 		// 创建一个管道，用于splice函数
 		int pipefd[2];
 		int ret = pipe(pipefd);
-		//int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
+		int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
 		try{
 			if(!fs::exists(p)){
 				filefd = open(p.c_str(),
@@ -672,12 +672,12 @@ public:
 				reply("125 data connection already open, transfer starting.\r\n");
 				user->flush();
 				do{
-					ret = splice(user->dsockfd, NULL, pipefd[1], NULL, 32768, SPLICE_F_MORE | SPLICE_F_MOVE);
+					ret = splice(user->dsockfd, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 					if(ret == -1) mcthrow("splice写入管道出错!");
 					else if(ret == 0) break;
-					ret = splice(pipefd[0], NULL, filefd, NULL, 32768, SPLICE_F_MORE | SPLICE_F_MOVE);
+					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 					if(ret == -1) mcthrow("splice从管道读入出错!");
-				}while(ret && ret == 32768);
+				}while(ret && ret != -1);
 				close(filefd);
 				close(user->dsockfd);
 			}catch(MCErr err){
@@ -708,11 +708,11 @@ public:
 			try{
 				do{
 					// 陷入阻塞
-					ret = splice(conn, NULL, pipefd[1], NULL, 32768, SPLICE_F_MORE | SPLICE_F_MOVE);
+					ret = splice(conn, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 					if(ret == -1) mcthrow("splice写入管道出错!");
 					else if(ret == 0) break;
-					ret = splice(pipefd[0], NULL, filefd, NULL, 32768, SPLICE_F_MORE | SPLICE_F_MOVE);
-				}while(ret && ret == 32768); // 如果小于管道大小，说明已传输完毕
+					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+				}while(ret && ret != -1); // 如果小于管道大小，说明已传输完毕
 				reply("250 request file action okay, completed.\r\n");
 				user->flush();
 				close(filefd);
