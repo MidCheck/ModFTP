@@ -9,9 +9,13 @@
 #include <unordered_map>
 #include <iostream>
 #include <string.h>
-
+#include "debug.h"
 namespace MidCHeck{
+#ifndef DEBUG
 #define _IP "192.168.1.7"
+#else
+#define _IP "127.0.0.1"
+#endif
 typedef enum { 
 	USER, PASS, CWD,  REIN, QUIT, PORT, PASV, TYPE, 
 	STRU, MODE, SIZE, RETR, STOR, ALLO, REST, RNFT,
