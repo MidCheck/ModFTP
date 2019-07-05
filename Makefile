@@ -1,10 +1,13 @@
 # Using 1.70.0 in Ubuntu 18.04
-
+ifeq ($(DEBUG), TRUE)
+GCC = g++ -DDEBUG
+else
 GCC = g++
+endif
 BOOST = /usr/local
 INCLUDES += -I$(BOOST)/include -Iinclude
 LIBS +=  -L$(BOOST)/lib -lboost_filesystem -lpthread -lcurses
-CFLAGS= $(INCLUDES) $(LIBS)
+CFLAGS = $(INCLUDES) $(LIBS)
 #CFLAGS = -lpthread -lboost_filesystem -lcurses
 objs = socket.o FTP.o
 ser_objs = $(objs) FTP_Shardata.o FTP_Server.o
