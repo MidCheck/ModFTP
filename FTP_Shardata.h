@@ -34,8 +34,15 @@ public:
 	bool DelUser(int fd){
 		std::unordered_map<int, User*>::iterator it = users.find(fd);
 		if(it != users.end()){
+			#ifdef DEBUG
+			User* ptr = it->second;
+			Debug("Before delete User, auth: %d, name: %s", ptr->auth, ptr->name.c_str());
+			#endif
 			delete it->second;
 			users.erase(it);
+			#ifdef DEBUG
+			Debug("After delete User, auth: %d, name: %s", ptr->auth, ptr->name.c_str());
+			#endif
 			return true;
 		}
 		return false;

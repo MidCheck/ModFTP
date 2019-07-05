@@ -79,8 +79,9 @@ int main(int argc, char **argv){
 	sd->db = db;
 	FTP_Server ftp(ip, atoi(port));
 	
+#ifndef DEBUG
 	daemon(0,0); // 设置守护进程
-
+#endif
 	ftp.start();
 
 	delete db;

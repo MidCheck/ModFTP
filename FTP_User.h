@@ -52,6 +52,11 @@ public:
 	void flush(){
 		send(sockfd, buffer, rw_cur, 0);
 	}
+#ifdef DEBUG
+	~User(){
+		Debug("此时User析够");
+	}
+#endif
 };
 } // end namespace MidCHeck
 #endif
