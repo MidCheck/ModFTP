@@ -52,14 +52,16 @@ public:
 	{
 		// 保证每一个命令都有数据空间
 		// 注意到在quit退出或套接字关闭时释放空间
+		// 需要加锁，但也可不加
 		if(_user == nullptr) {
+			Debug("_user == nullptr, 创建新用户");
 			_user = new User;
 			_user->sockfd = _sockfd;
 		}
 	}
-	/*~Worker(){
-		std::cout << "[s] work析构 " << std::endl;
-	}*/
+	~Worker(){
+		Debug("work 析够");
+	}
 	void operator()(){
 		char* buf = _user->buffer;
 		// 如果命令后的参数太长，则可能出bug
@@ -68,9 +70,11 @@ public:
 			// 可能不需要清空内存，因为解析时以结束符为标志
 			memset(buf, '\0', _user->rw_cur);
 			int ret = recv(_sockfd, buf, 128, 0);
-
+			Debug("recv _sockfd: %d, ret: %d, buf: %s", _sockfd, ret, buf);
 			if(ret == 0){
 				close(_sockfd);
+				Debug("关闭连接套接字close _sockfd: %d", _sockfd);
+				//delete d
 				break;
 			}else if(ret < 0){
 				if(errno == EAGAIN){

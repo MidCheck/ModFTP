@@ -151,7 +151,9 @@ public:
 		reply("221 closing connection\r\n");
 		user->flush();
 		close(user->dsockfd);
-		close(user->sockfd);
+		shutdown(user->sockfd, SHUT_RDWR);
+		Debug("QUIT关闭连接套接字:%d", user->sockfd);
+		//close(user->sockfd);
 		sd->DelUser(user->sockfd);
 	}
 };
@@ -346,8 +348,10 @@ private:
 public:
 	CmdPASV(User* usr): Command(usr), serv_len(sizeof(user->serv)){ }
 	void process(){
+		Debug("user->auth: %d", user->auth);
 		IsLegal(user->auth);
 		if(user->mode == MODEPASV){ 
+			Debug("重复绑定");
 			reply("150 file status okay, will open data connection.\r\n");
 			return;
 		}
@@ -458,6 +462,7 @@ private:
 public:
 	CmdLIST(User* usr): Command(usr){}
 	void process(){
+		Debug("auth: %d", user->auth);
 		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
@@ -466,6 +471,7 @@ public:
 		if(*buf == '/'){ p = "/"; ++buf; }
 		check(buf);
 		p /= buf;
+		Debug("p:%s", p.c_str());
 		if(!fs::exists(p)){
 			reply("550 no such file or directory\r\n");
 			return;
@@ -473,6 +479,7 @@ public:
 		std::vector<std::string> list;
 		parse_list(p, list, flag);
 		std::vector<std::string>::iterator it = ++list.begin();
+		Debug("list size:%d", list.size());
 		if(!flag){
 			for(; it != list.end(); ++it){
 				list[0] += "\n" + *it;
@@ -514,12 +521,14 @@ public:
 			// replace all '.' to ',' 
 			char *ptr_dot = user->buffer;
 			while((ptr_dot = strstr(ptr_dot, ".")) && (*ptr_dot++ = ','));
+			Debug("list reply:[%s]", user->buffer);
 			user->flush();
 			
 			struct sockaddr_in client_address;
 			socklen_t clen = sizeof(client_address);
 			// 应设置为非阻塞//阻塞死了,整个连接断掉
 			int conn = accept(user->dsockfd, (struct sockaddr*)&client_address, &clen);
+			Debug("accept dsockfd:%d", user->dsockfd);
 			reply("125 data connection already open, transfer starting.\r\n");
 			user->flush();
 			send(conn, list[0].c_str(), list[0].length(), 0);

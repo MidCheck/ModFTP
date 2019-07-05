@@ -24,8 +24,10 @@ void FTP_Server::start(){
 	while(1){
 		int ret = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
 		if(ret < 0) mcthrow("epoll failure");
+		Debug("epoll_wait: %d", ret);
 		for(int i = 0; i < ret; ++i){
 			int sockfd = events[i].data.fd;
+			Debug(" sockfd: %d", sockfd);
 			if(sockfd == this->sock){
 				struct sockaddr_in client_address;
 				socklen_t client_addrlength = sizeof(client_address);
@@ -36,10 +38,16 @@ void FTP_Server::start(){
 				send(connfd, ftp_220, len , 0);
 				/*对每个非监听文件描述符都注册EPOLLONESHOT事件*/
 				addfd(epollfd, connfd, true);
+				User *new_user = new User;
+				new_user->sockfd = connfd;
 			}else if(events[i].events & EPOLLIN){
+				Debug("work 定义前");
 				Worker work(epollfd, sockfd); // work析够一次
+				Debug("work 定义后");
 				std::thread my_thread(work);
+				Debug("work thread 创建后");
 				my_thread.detach();
+				Debug("work thread 分离后");
 			}else {
 				std::cerr << "[?] something else happeded" << std::endl;
 			}
