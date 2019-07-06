@@ -644,6 +644,7 @@ public:
 		if(*buf == '/'){ p = "/"; ++buf; }
 		check(buf);
 		p /= buf;
+		Debug("Stor path:%s", p.c_str());
 		bool  pip_flag = true;
 
 		int filefd = 0;

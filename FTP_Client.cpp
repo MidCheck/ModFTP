@@ -383,6 +383,7 @@ void FTP_Client::CmdStor(){
 		mcthrow("[-] 连接失败!");
 	memset(buffer, '\0', 128);
 	// 接受125, 250 226等回复
+	try{
 	recv(sockfd, buffer, 128, 0);
 	char* ptr_recv = replace(buffer);
 	if(ptr_recv)
@@ -419,6 +420,10 @@ void FTP_Client::CmdStor(){
 			std::cout << buffer << std::endl;
 		}
 	}
+	}catch(...){
+		std::cout << "接受reply出错" << std::endl;
+	}
+	Debug("关闭数据连接");
 	close(filefd);
 	close(dsockfd);
 }
