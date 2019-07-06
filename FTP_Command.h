@@ -519,7 +519,8 @@ public:
 			strcpy(user->buffer, "227 entering Passive Mode (");
 			//user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
 			//inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
-			strcat(user->buffer, _IP);
+			Shardata* sd = Shardata::GetEntity();
+			strcat(user->buffer, sd->data_ip);
 			user->rw_cur = strlen(user->buffer);
 			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
@@ -599,7 +600,9 @@ public:
 			strcpy(user->buffer, "227 entering Passive Mode (");
 			//user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
 			//inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
-			strcat(user->buffer, _IP);
+			//strcat(user->buffer, _IP);
+			Shardata* sd = Shardata::GetEntity();
+			strcat(user->buffer, sd->data_ip);
 			user->rw_cur = strlen(user->buffer);
 			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 
@@ -695,7 +698,9 @@ public:
 			strcpy(user->buffer, "227 entering Passive Mode (");
 			//user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
 			//inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
-			strcat(user->buffer, _IP);
+			//strcat(user->buffer, _IP);
+			Shardata* sd = Shardata::GetEntity();
+			strcat(user->buffer, sd->data_ip);
 			user->rw_cur = strlen(user->buffer);
 			user->rw_cur += sprintf(&user->buffer[user->rw_cur], ",%d,%d)\r\n", user->port / 256, user->port % 256);
 			// replace all '.' to ',' 

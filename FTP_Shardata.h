@@ -20,6 +20,7 @@ public:
 	std::unordered_map<int, User*> users;
 	std::string dir_root;
 	MidCHeck::Database* db;
+	char data_ip[20];
 	static std::mutex m;
 
 	Shardata();

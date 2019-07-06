@@ -134,7 +134,14 @@ void FTP_Client::CmdUser(){
 	std::cout << "password: " << std::flush;
 	getpasswd(&buffer[rw_cur-1], 128 - rw_cur - 1);
 	std::cout<<std::endl;
+	strcat(buffer, "\r\n");
 	rw_cur = strlen(buffer);
+	send(sockfd, buffer, rw_cur, 0);
+	if((rw_cur = recv(sockfd, buffer, 128, 0)) != -1){
+		if(!strncmp(buffer, "230", 3)) auth = LEGAL;
+		else auth = ILLEGAL;
+		std::cout << buffer;
+	}
 }
 
 void FTP_Client::CmdList(){
@@ -461,7 +468,7 @@ void FTP_Client::start(){
 				#endif
 					   break;
 			case QUIT: CmdQuit(); return;
-			case USER: CmdUser();
+			case USER: CmdUser(); break;
 			default:
 				buffer[rw_cur++] = '\r';
 				buffer[rw_cur++] = '\n';
