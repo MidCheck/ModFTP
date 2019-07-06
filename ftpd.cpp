@@ -53,16 +53,24 @@ int main(int argc, char **argv){
 		return 1;
 	}
 	Database* db = new Database;
+	Shardata* sd = Shardata::GetEntity();
 	char buffer[256], ip[20], port[10];
 	char name[32], passwd[64], home[128];
-	bool gflag = false, uflag = false;
+	bool gflag = false, uflag = false, dflag = false;
 	while(!conf_file.eof()){
 		conf_file.getline(buffer, 256);
+		if(buffer[0] == '#') continue;
 		if(!strncmp(buffer, "[global]", 8)) gflag = true;
-		if(!strncmp(buffer, "[user]", 6)) {uflag = true; gflag = false;}
+		if(!strncmp(buffer, "[data]", 6)) dflag = true;
+		if(!strncmp(buffer, "[user]", 6)) uflag = true;
 		if(gflag){
 			parse_conf(buffer, "ip", ip);
-			parse_conf(buffer, "port", port);
+			if(parse_conf(buffer, "port", port))
+				gflag = false;
+		}
+		if(dflag){
+			if(parse_conf(buffer, "ip", sd->data_ip))
+				dflag = false;
 		}
 		if(uflag){
 			if(parse_conf(buffer, name, passwd, home)){
@@ -74,8 +82,8 @@ int main(int argc, char **argv){
 		}
 		memset(buffer, 0, 256);
 	}
-
-	Shardata* sd = Shardata::GetEntity();
+	Debug("config ip:%s, port:%d, data ip:%s", ip, atoi(port), sd->data_ip);
+	conf_file.close();
 	sd->db = db;
 	FTP_Server ftp(ip, atoi(port));
 	
