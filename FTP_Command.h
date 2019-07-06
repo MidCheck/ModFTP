@@ -386,8 +386,8 @@ class CmdLIST: public Command{
 private:
 	std::vector<std::string> list;
 	const std::string parse_file(const fs::path& p){
-		fs::file_status result = symlink_status(p);
-		fs::perms perms= result.permissions();
+		fs::file_status result = fs::symlink_status(p);
+		fs::perms perms = result.permissions();
 		bool flag_d = false, flag_l = false, flag_x = false;
 		std::string at;
 		// 先看文件类型
@@ -413,56 +413,52 @@ private:
 		at += perms & fs::others_write ? "w" : "-";
 		at += perms & fs::others_exe ? flag_x = true, "x" : "-";
 
-		try{
-			using boost::format;
-			struct stat file_stat;
-			if((stat(p.c_str(), &file_stat)) == -1)
-				throw std::runtime_error("stat error");
-			struct passwd *ptr = getpwuid(file_stat.st_uid);
-			struct group *str = getgrgid(file_stat.st_gid);
-			at += (format(" %4d") % file_stat.st_nlink).str();
-			// 接下来把它转为ls的格式即可, string format
-			// 加上属主和属组
-			at += (format(" %s") % ptr->pw_name).str();
-			at += (format(" %s") % str->gr_name).str();
-			at += (format(" %8d") % file_stat.st_size).str();
-			at += (format(" %.12s ") % (4 + ctime(&file_stat.st_mtime))).str();
-			if(flag_l){
-				at += (format("\033[47;36m%s\033[0m") % p.filename().c_str()).str();
-			}else if(flag_d){
-				at += (format("\033[40;34m%s\033[0m") % p.filename().c_str()).str();
-			}else if(flag_x){
-				at += (format("\033[40;32m%s\033[0m") % p.filename().c_str()).str();
-			}else{
-				at += p.filename().string();
-			}
-		}catch(std::runtime_error err){
-			std::cerr << err.what() << " line:" << __LINE__ << std::endl;
-		}catch(std::exception const& e){
-			std::cerr << e.what() << "line:" << __LINE__ << std::endl;
+		using boost::format;
+		struct stat file_stat;
+		if((stat(p.c_str(), &file_stat)) == -1){
+			Debug("stat error: %s", strerror(errno));
+			return at += p.string();
+		}
+		struct passwd *ptr = getpwuid(file_stat.st_uid);
+		struct group *str = getgrgid(file_stat.st_gid);
+		at += (format(" %4d") % file_stat.st_nlink).str();
+		// 接下来把它转为ls的格式即可, string format
+		// 加上属主和属组
+		if(ptr != nullptr) at += (format(" %s") % ptr->pw_name).str();
+		else at += " unknown";
+		if(str != nullptr) at += (format(" %s") % str->gr_name).str();
+		else at += " unknown";
+		at += (format(" %8d") % file_stat.st_size).str();
+		at += (format(" %.12s ") % (4 + ctime(&file_stat.st_mtime))).str();
+		if(flag_l){
+			at += (format("\033[47;36m%s\033[0m") % p.filename().c_str()).str();
+		}else if(flag_d){
+			at += (format("\033[40;34m%s\033[0m") % p.filename().c_str()).str();
+		}else if(flag_x){
+			at += (format("\033[40;32m%s\033[0m") % p.filename().c_str()).str();
+		}else{
+			at += p.filename().string();
 		}
 		return at;
 	}
 	void parse_list(fs::path& p, std::vector<std::string>& list, bool flag = false){
-		// using boost::filesystem::directory_iterator;
-			if(fs::is_directory(p)){ // 如果是目录,返回目录信息
-				if(!flag){
-					for(fs::directory_entry& x: fs::directory_iterator(p)){
-						list.push_back(parse_file(x.path()));
-					}
-				}else{
-					for(fs::directory_entry& x: fs::directory_iterator(p)){
-						list.push_back(x.path().filename().string());
-					}
+		if(fs::is_directory(p)){ // 如果是目录,返回目录信息
+			if(!flag){
+				for(fs::directory_entry& x: fs::directory_iterator(p)){
+					list.push_back(parse_file(x.path()));
 				}
 			}else{
-				list.push_back(parse_file(p));
+				for(fs::directory_entry& x: fs::directory_iterator(p)){
+					list.push_back(x.path().filename().string());
+				}
 			}
+		}else{
+			list.push_back(parse_file(p));
+		}
 	}
 public:
 	CmdLIST(User* usr): Command(usr){}
 	void process(){
-		Debug("auth: %d", user->auth);
 		IsLegal(user->auth);
 		char* buf = &user->buffer[user->rw_cur];
 		fs::path p(user->path);
@@ -471,7 +467,6 @@ public:
 		if(*buf == '/'){ p = "/"; ++buf; }
 		check(buf);
 		p /= buf;
-		Debug("p:%s", p.c_str());
 		if(!fs::exists(p)){
 			reply("550 no such file or directory\r\n");
 			return;
@@ -483,7 +478,6 @@ public:
 			return;
 		}
 		std::vector<std::string>::iterator it = ++list.begin();
-		Debug("list size:%d", list.size());
 		if(!flag){
 			for(; it != list.end(); ++it){
 				list[0] += "\n" + *it;
@@ -517,8 +511,6 @@ public:
 			// 进入PASV模式
 			// 给客户端发送IP以及端口
 			strcpy(user->buffer, "227 entering Passive Mode (");
-			//user->rw_cur = sizeof("227 entering Passive Mode (") - 1;
-			//inet_ntop(AF_INET, &user->serv.sin_addr, &user->buffer[user->rw_cur], 20);
 			Shardata* sd = Shardata::GetEntity();
 			strcat(user->buffer, sd->data_ip);
 			user->rw_cur = strlen(user->buffer);
@@ -537,9 +529,9 @@ public:
 			reply("125 data connection already open, transfer starting.\r\n");
 			user->flush();
 			send(conn, list[0].c_str(), list[0].length(), 0);
+			close(conn);
 			reply("250 request file action okay, completed.\r\n");
 			user->flush();
-			close(conn);
 		}else{
 			reply("226 need to specify mode.\r\n");
 			return;
