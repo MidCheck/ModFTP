@@ -390,7 +390,6 @@ void FTP_Client::CmdStor(){
 	memset(buffer, '\0', 128);
 	// 接受125, 250 226等回复
 	recv(sockfd, buffer, 128, 0);
-	std::cout << "bufer: " << buffer << std::endl;
 	char* ptr_recv = replace(buffer);
 	if(ptr_recv)
 		std::cout << buffer << std::endl;
@@ -398,13 +397,14 @@ void FTP_Client::CmdStor(){
 	try{
 		if(sendfile(dsockfd, filefd, NULL, fs::file_size(p)) == -1)
 			mcthrow("sendfile error");
+		close(dsockfd);
+		close(filefd);
 	}catch(MCErr err){
 		std::cerr << err.what() << std::endl;
 		close(filefd);
 		close(dsockfd);
 		return;
 	}
-	std::cout << "发送文件完毕" << std::endl;
 	// 解决tcp粘包问题
 	if(char* ptr = replace(ptr_recv)){ // 发送端粘包
 		do{
@@ -414,12 +414,6 @@ void FTP_Client::CmdStor(){
 	}else{
 		memset(buffer, '\0', 128);
 		rw_cur = recv(sockfd, buffer, 128, 0); // 接受端粘包
-		if(rw_cur < 1) { // 如果没有数据接受
-			std::cout << "没有数据接受" << std::endl;
-			close(filefd);
-			close(dsockfd);
-			return;
-		}
 		ptr_recv = replace(buffer);
 		if(ptr_recv) std::cout << buffer << std::endl;
 		if(char* ptr = replace(ptr_recv)){
@@ -434,9 +428,6 @@ void FTP_Client::CmdStor(){
 				std::cout << buffer << std::endl;
 		}
 	}
-	Debug("关闭数据连接");
-	close(filefd);
-	close(dsockfd);
 }
 
 void FTP_Client::CmdQuit(){

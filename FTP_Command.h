@@ -619,10 +619,10 @@ public:
 			try{
 				if(sendfile(conn, filefd, NULL, fs::file_size(p)) == -1)
 					mcthrow("sendfile error");
+				close(conn);
 				reply("250 request file action okay, completed.\r\n");
 				user->flush();
 				close(filefd);
-				close(conn);
 			}catch(MCErr err){
 				std::cerr << err.what() << std::endl;
 				reply("421 can't sendfile, close connection\r\n");
