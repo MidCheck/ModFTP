@@ -627,6 +627,7 @@ public:
 				std::cerr << err.what() << std::endl;
 				reply("421 can't sendfile, close connection\r\n");
 				close(conn);
+				close(filefd);
 				return;
 			}
 		}
@@ -730,6 +731,7 @@ public:
 				std::cerr << err.what() << std::endl;
 				reply("421 can't sendfile, close connection\r\n");
 				close(conn);
+				close(filefd);
 				return;
 			}
 		}else{

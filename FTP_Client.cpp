@@ -10,6 +10,8 @@
 namespace MidCHeck{
 FTP_Client::FTP_Client(const char* ip, int port): Socket(ip, port){
 	sockfd = sock;
+	auth = ILLEGAL;
+	status = NOTLOGGED;
 	if(connect(sockfd, (struct sockaddr*)&sock_addr, sizeof(sock_addr)) == -1)
 		mcthrow("[-] 连接失败!");
 	else{
@@ -138,7 +140,10 @@ void FTP_Client::CmdUser(){
 	rw_cur = strlen(buffer);
 	send(sockfd, buffer, rw_cur, 0);
 	if((rw_cur = recv(sockfd, buffer, 128, 0)) != -1){
-		if(!strncmp(buffer, "230", 3)) auth = LEGAL;
+		if(!strncmp(buffer, "230", 3)) {
+			auth = LEGAL;
+			status = LOGGED;
+		}
 		else auth = ILLEGAL;
 		std::cout << buffer;
 	}
@@ -430,6 +435,8 @@ void FTP_Client::CmdQuit(){
 
 void FTP_Client::start(){
 	const char* bash = "ftp> ";
+	timeval tv_out{1, 0};
+	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out));
 	while(true){
 		std::cout << bash << std::flush;
 		try{
@@ -442,8 +449,18 @@ void FTP_Client::start(){
 		}
 		switch(parse()){
 			case HELP: CmdHelp(); break;
-			case LIST: CmdList(); break;
+			case LIST: 
+				if(status != LOGGED){
+					std::cout << "请先登录" << std::endl;
+					break;
+				}
+				CmdList();
+				break;
 			case RETR:
+				if(status != LOGGED){
+					std::cout << "请先登录" << std::endl;
+					break;
+				}
 				#if DEBUG
 					timeval t1, t2;
 					gettimeofday(&t1, NULL);
@@ -456,6 +473,10 @@ void FTP_Client::start(){
 				#endif
 					   break;
 			case STOR: 
+				if(status != LOGGED){
+					std::cout << "请先登录" << std::endl;
+					break;
+				}
 				#if DEBUG
 					timeval t1, t2;
 					gettimeofday(&t1, NULL);
@@ -470,10 +491,17 @@ void FTP_Client::start(){
 			case QUIT: CmdQuit(); return;
 			case USER: CmdUser(); break;
 			default:
+				if(status != LOGGED){
+					std::cout << "请先登录" << std::endl;
+					break;
+				}
 				buffer[rw_cur++] = '\r';
 				buffer[rw_cur++] = '\n';
 				send(sockfd, buffer, rw_cur, 0);
-				if((rw_cur = recv(sockfd, buffer, 128, 0)) != -1){
+				rw_cur = recv(sockfd, buffer, 128, 0);
+				if(rw_cur == 0){
+					std::cout << "timeout..." << std::endl;
+				}else if(rw_cur > 0){
 					std::cout << buffer;
 				}
 				break;

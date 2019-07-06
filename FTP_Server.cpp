@@ -41,13 +41,9 @@ void FTP_Server::start(){
 				User *new_user = new User;
 				new_user->sockfd = connfd;
 			}else if(events[i].events & EPOLLIN){
-				Debug("work 定义前");
 				Worker work(epollfd, sockfd); // work析够一次
-				Debug("work 定义后");
 				std::thread my_thread(work);
-				Debug("work thread 创建后");
 				my_thread.detach();
-				Debug("work thread 分离后");
 			}else {
 				std::cerr << "[?] something else happeded" << std::endl;
 			}
