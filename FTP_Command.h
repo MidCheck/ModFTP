@@ -724,6 +724,7 @@ public:
 					else if(ret == 0) break;
 					ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 				}while(ret && ret != -1); // 如果小于管道大小，说明已传输完毕
+				Debug("reply : 250 文件接受完毕");
 				reply("250 request file action okay, completed.\r\n");
 				user->flush();
 				close(filefd);

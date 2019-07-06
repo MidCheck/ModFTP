@@ -330,8 +330,8 @@ void FTP_Client::CmdStor(){
 		return;
 	}
 	char *ptr_remote = strstr(ptr+1, " "); // 是否有第二个参数
-	if(ptr_remote != nullptr) *ptr_remote = '\0';
-	fs::path p(ptr+1); // 用第一个参数打开本地文件
+	if(ptr_remote != nullptr) *ptr_remote++ = '\0';
+	fs::path p(++ptr); // 用第一个参数打开本地文件
 	if(ptr_remote != nullptr) // 如果有第二个参数,　将第二个参数作为stor参数
 		strcpy(ptr, ptr_remote);
 	else // 否则，把当前文件的文件名作为stor参数
@@ -364,7 +364,7 @@ void FTP_Client::CmdStor(){
 	}
 	// 发送STOR命令
 	strcat(buffer, "\r\n");
-	rw_cur += 2;
+	rw_cur = strlen(buffer);
 	send(sockfd, buffer, rw_cur, 0);
 	memset(temp, '\0', 128);
 	// 接收ip,port
@@ -390,6 +390,7 @@ void FTP_Client::CmdStor(){
 	memset(buffer, '\0', 128);
 	// 接受125, 250 226等回复
 	recv(sockfd, buffer, 128, 0);
+	std::cout << "bufer: " << buffer << std::endl;
 	char* ptr_recv = replace(buffer);
 	if(ptr_recv)
 		std::cout << buffer << std::endl;
@@ -397,14 +398,13 @@ void FTP_Client::CmdStor(){
 	try{
 		if(sendfile(dsockfd, filefd, NULL, fs::file_size(p)) == -1)
 			mcthrow("sendfile error");
-		Debug("发送文件完毕");
-
 	}catch(MCErr err){
 		std::cerr << err.what() << std::endl;
 		close(filefd);
 		close(dsockfd);
 		return;
 	}
+	std::cout << "发送文件完毕" << std::endl;
 	// 解决tcp粘包问题
 	if(char* ptr = replace(ptr_recv)){ // 发送端粘包
 		do{
@@ -415,6 +415,7 @@ void FTP_Client::CmdStor(){
 		memset(buffer, '\0', 128);
 		rw_cur = recv(sockfd, buffer, 128, 0); // 接受端粘包
 		if(rw_cur < 1) { // 如果没有数据接受
+			std::cout << "没有数据接受" << std::endl;
 			close(filefd);
 			close(dsockfd);
 			return;
@@ -450,8 +451,8 @@ void FTP_Client::CmdQuit(){
 
 void FTP_Client::start(){
 	const char* bash = "ftp> ";
-	timeval tv_out{1, 0};
-	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out));
+	//timeval tv_out{3, 0};
+	//setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out));
 	while(true){
 		std::cout << bash << std::flush;
 		try{
@@ -513,6 +514,7 @@ void FTP_Client::start(){
 				buffer[rw_cur++] = '\r';
 				buffer[rw_cur++] = '\n';
 				send(sockfd, buffer, rw_cur, 0);
+				memset(buffer, '\0', rw_cur);
 				rw_cur = recv(sockfd, buffer, 128, 0);
 				if(rw_cur == 0){
 					std::cout << "timeout..." << std::endl;
