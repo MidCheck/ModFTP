@@ -34,7 +34,7 @@ FTP_Client::FTP_Client(const char* ip, int port): Socket(ip, port){
 	cmd_help[STRU] = "设置文件传输结构";
 	cmd_help[MODE] = "设置传输模式";
 	cmd_help[SIZE] = "返回文件大小";
-	cmd_help[RETR] = "下载文件, 存储到本地不带路径\n用法: retr 远程文件";
+	cmd_help[RETR] = "下载文件, 存储到本地不带路径\n用法: retr 远程文件 [本地绝对路径]";
 	cmd_help[STOR] = "上传文件, 存储到服务器不带路径\n用法: stor 本地文件 [远程路径]";
 	cmd_help[ALLO] = "保留足够空间";
 	cmd_help[REST] = "重新开始";
@@ -199,10 +199,12 @@ void FTP_Client::CmdList(){
 		std::cout << buffer << std::endl;
 
 	memset(temp, '\0', 128);
+	std::cout<< "-------------------------------------------------------------\n";
 	while((ret = recv(dsockfd, temp, 127, 0)) > 0){
 		std::cout << temp;
 		memset(temp, '\0', 127);
 	}
+	std::cout<< "-------------------------------------------------------------\n";
 	// 解决tcp粘包问题
 	if(char* ptr = replace(ptr_recv)){
 		do{
@@ -244,11 +246,22 @@ void FTP_Client::CmdRetr(){
 	}
 	// 新建本地文件路径
 	char *ptr = strstr(buffer, " ");
-	++ptr;
-	fs::path p(ptr);
+	char *ptr_local = strstr(ptr+1, " ");
+	if(ptr_local != nullptr) *ptr_local++ = '\0';
+	fs::path p(++ptr), p_local;
+	//　如果指定的本地路径是空目录
+	if(ptr_local != nullptr) {
+		while(isspace(*ptr_local)) ++ptr_local;
+		p_local = ptr_local;
+		if(p_local.filename() != p.filename())
+			p_local /= p.filename();
+		p = p_local;
+	}else{
+		p = p.filename(); // 如果第二参数不存在
+	}
 	// 发送retr命令
 	strcat(buffer, "\r\n");
-	rw_cur += 2;
+	rw_cur = strlen(buffer);
 	send(sockfd, buffer, rw_cur, 0);
 	memset(temp, '\0', 128);
 	// 接收ip,port
@@ -281,22 +294,24 @@ void FTP_Client::CmdRetr(){
 	ret = pipe(pipefd);
 	int pipe_size = fpathconf(pipefd[0], _PC_PIPE_BUF);
 	int filefd;
-	if(!fs::exists(p.filename())){
-		filefd = open(p.filename().c_str(), 
+	if(!fs::exists(p)){
+		filefd = open(p.c_str(), 
 			O_CREAT|O_WRONLY,
 			S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
 	}else{
-		filefd = open(p.filename().c_str(),
+		filefd = open(p.c_str(),
 			O_WRONLY| O_TRUNC);
 	}
 	do{
 		ret = splice(dsockfd, NULL, pipefd[1], NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
-		Debug("接受文件数据: %d", ret);
 		if(ret == -1) mcthrow("splice写入管道出错!");
 		else if(ret == 0) break;
 		ret = splice(pipefd[0], NULL, filefd, NULL, pipe_size, SPLICE_F_MORE | SPLICE_F_MOVE);
 		if(ret == -1) mcthrow("splice从管道读入出错!");
 	}while(ret && ret != -1);
+	close(filefd);
+	close(dsockfd);
+
 	// 解决tcp粘包问题
 	if(char* ptr = replace(ptr_recv)){
 		do{
@@ -319,8 +334,6 @@ void FTP_Client::CmdRetr(){
 			std::cout << buffer << std::endl;
 		}
 	}
-	close(filefd);
-	close(dsockfd);
 }
 void FTP_Client::CmdStor(){
 	// 找到对应本地文件
@@ -442,8 +455,8 @@ void FTP_Client::CmdQuit(){
 
 void FTP_Client::start(){
 	const char* bash = "ftp> ";
-	//timeval tv_out{3, 0};
-	//setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out));
+	timeval tv_out{3, 0};
+	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out));
 	while(true){
 		std::cout << bash << std::flush;
 		try{
