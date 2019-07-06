@@ -65,6 +65,7 @@ inline void InitMap(std::unordered_map<std::string, COMMAND>& cmd_map){
  * 功能: 把在buf里wd指定的子字符串的首位替换成'\0'，去掉结束标志
  */
 inline char* replace(char *buf, const char* wd = "\n"){
+	if(buf == nullptr) return nullptr;
 	char *_ptr_ = strstr(buf, wd);
 	if(_ptr_ == nullptr){
 		return nullptr;
