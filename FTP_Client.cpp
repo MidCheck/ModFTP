@@ -35,7 +35,7 @@ FTP_Client::FTP_Client(const char* ip, int port): Socket(ip, port){
 	cmd_help[MODE] = "设置传输模式";
 	cmd_help[SIZE] = "返回文件大小";
 	cmd_help[RETR] = "下载文件, 存储到本地不带路径\n用法: retr 远程文件";
-	cmd_help[STOR] = "上传文件, 存储到服务器不带路径\n用法: stor 本地文件";
+	cmd_help[STOR] = "上传文件, 存储到服务器不带路径\n用法: stor 本地文件 [远程路径]";
 	cmd_help[ALLO] = "保留足够空间";
 	cmd_help[REST] = "重新开始";
 	cmd_help[RNFT] = "重命名开始";
@@ -329,7 +329,13 @@ void FTP_Client::CmdStor(){
 		std::cerr << "[-] 参数格式错误" << std::endl;
 		return;
 	}
-	fs::path p(++ptr);
+	char *ptr_remote = strstr(ptr+1, " "); // 是否有第二个参数
+	if(ptr_remote != nullptr) *ptr_remote = '\0';
+	fs::path p(ptr+1); // 用第一个参数打开本地文件
+	if(ptr_remote != nullptr) // 如果有第二个参数,　将第二个参数作为stor参数
+		strcpy(ptr, ptr_remote);
+	else // 否则，把当前文件的文件名作为stor参数
+		strcpy(ptr, p.filename().c_str()); 
 	if(!fs::exists(p)){
 		std::cerr << "[-] 本地文件不存在" << std::endl;
 		return;
@@ -383,7 +389,6 @@ void FTP_Client::CmdStor(){
 		mcthrow("[-] 连接失败!");
 	memset(buffer, '\0', 128);
 	// 接受125, 250 226等回复
-	try{
 	recv(sockfd, buffer, 128, 0);
 	char* ptr_recv = replace(buffer);
 	if(ptr_recv)
@@ -392,6 +397,8 @@ void FTP_Client::CmdStor(){
 	try{
 		if(sendfile(dsockfd, filefd, NULL, fs::file_size(p)) == -1)
 			mcthrow("sendfile error");
+		Debug("发送文件完毕");
+
 	}catch(MCErr err){
 		std::cerr << err.what() << std::endl;
 		close(filefd);
@@ -406,7 +413,12 @@ void FTP_Client::CmdStor(){
 		}while(ptr = replace(ptr_recv));
 	}else{
 		memset(buffer, '\0', 128);
-		recv(sockfd, buffer, 128, 0); // 接受端粘包
+		rw_cur = recv(sockfd, buffer, 128, 0); // 接受端粘包
+		if(rw_cur < 1) { // 如果没有数据接受
+			close(filefd);
+			close(dsockfd);
+			return;
+		}
 		ptr_recv = replace(buffer);
 		if(ptr_recv) std::cout << buffer << std::endl;
 		if(char* ptr = replace(ptr_recv)){
@@ -416,12 +428,10 @@ void FTP_Client::CmdStor(){
 			}while(ptr = replace(ptr_recv));
 		}else{
 			memset(buffer, '\0', 128);
-			recv(sockfd, buffer, 128, 0);
-			std::cout << buffer << std::endl;
+			rw_cur = recv(sockfd, buffer, 128, 0);
+			if(rw_cur > 0)
+				std::cout << buffer << std::endl;
 		}
-	}
-	}catch(...){
-		std::cout << "接受reply出错" << std::endl;
 	}
 	Debug("关闭数据连接");
 	close(filefd);
